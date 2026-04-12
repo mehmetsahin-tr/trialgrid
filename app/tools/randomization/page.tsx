@@ -47,7 +47,7 @@ export default function RandomizationPage() {
 
     if (method === "parallel") {
       if (blockSize % groups.length !== 0) {
-        alert(`Blok boyutu grup sayısının (${groups.length}) katı olmalı.`);
+        alert(`Block size must be a multiple of group count (${groups.length}).`);
         return;
       }
       const per = blockSize / groups.length;
@@ -64,7 +64,7 @@ export default function RandomizationPage() {
       }
     } else {
       if (groups.length !== 2) {
-        alert("Çapraz tasarım için tam olarak 2 grup gereklidir.");
+        alert("Crossover design requires exactly 2 groups.");
         return;
       }
       const sequences = [`${groups[0]}${groups[1]}`, `${groups[1]}${groups[0]}`];
@@ -92,7 +92,7 @@ export default function RandomizationPage() {
   }
 
   function exportCSV() {
-    if (!rows.length) { alert("Önce oluşturun."); return; }
+    if (!rows.length) { alert("Generate first."); return; }
     let csv = method === "parallel"
       ? "Subject ID,Allocation,Block\n"
       : "Subject ID,Sequence,Period 1,Period 2,Block\n";
@@ -133,13 +133,13 @@ export default function RandomizationPage() {
                   className={`method-btn${method === "parallel" ? " active" : ""}`}
                   onClick={() => setMethod("parallel")}
                 >
-                  Paralel
+                  Parallel
                 </button>
                 <button
                   className={`method-btn${method === "crossover" ? " active" : ""}`}
                   onClick={() => setMethod("crossover")}
                 >
-                  Çapraz
+                  Crossover
                 </button>
               </div>
             </div>
