@@ -96,6 +96,13 @@ footer a:hover { text-decoration: underline; }
 /* Mobile nav toggle */
 .nav-toggle { display: none; background: none; border: 1px solid var(--rule); padding: .5rem .7rem; cursor: pointer; font-family: var(--font-jetbrains-mono), monospace; font-size: .75rem; text-transform: uppercase; color: var(--ink); }
 
+/* Method toggle (segmented control) */
+.method-toggle { display: flex; border: 1px solid var(--rule); width: fit-content; }
+.method-btn { padding: .5rem 1.1rem; border: none; background: none; font-family: var(--font-jetbrains-mono), monospace; font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; cursor: pointer; color: var(--muted); transition: background .1s, color .1s; }
+.method-btn + .method-btn { border-left: 1px solid var(--rule); }
+.method-btn.active { background: var(--ink); color: var(--paper); }
+.method-btn:not(.active):hover { color: var(--ink); }
+
 /* Tool cards (home) */
 .tool-card { border: 1px solid var(--rule); padding: 1.2rem; cursor: pointer; transition: background .1s; }
 .tool-card:hover { background: var(--paper-2); }
