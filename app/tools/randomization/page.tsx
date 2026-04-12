@@ -133,6 +133,21 @@ export default function RandomizationPage() {
       },
     });
 
+    // Add "Page X / Y" to every page after table is fully rendered
+    const totalPages = doc.getNumberOfPages();
+    for (let p = 1; p <= totalPages; p++) {
+      doc.setPage(p);
+      doc.setFont("courier", "normal");
+      doc.setFontSize(7);
+      doc.setTextColor(140, 138, 128);
+      doc.text(
+        `Page ${p} / ${totalPages}`,
+        doc.internal.pageSize.width - 14,
+        doc.internal.pageSize.height - 8,
+        { align: "right" }
+      );
+    }
+
     doc.save("randomization.pdf");
   }
 
