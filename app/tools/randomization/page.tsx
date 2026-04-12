@@ -22,12 +22,35 @@ function shuffle<T>(arr: T[], r: () => number): T[] {
   return arr;
 }
 
+function getCrossoverSequences(groups: string[], periods: number): string[][] {
+  const [A, B, C] = groups;
+  if (groups.length === 2) {
+    if (periods === 1) return [[A], [B]];
+    if (periods === 2) return [[A, B], [B, A]];
+    if (periods === 3) return [[A, B, A], [B, A, B]];
+    // periods === 4
+    return [[A, B, A, B], [B, A, B, A], [A, B, B, A], [B, A, A, B]];
+  }
+  if (groups.length === 3) {
+    if (periods === 3) return [[A, B, C], [B, C, A], [C, A, B], [A, C, B], [C, B, A], [B, A, C]];
+    if (periods === 4) return [
+      [A, B, C, A], [B, C, A, B], [C, A, B, C],
+      [A, C, B, A], [C, B, A, C], [B, A, C, B],
+    ];
+  }
+  // Fallback: one sequence per permutation, truncated/extended to periods
+  const perms: string[][] = [];
+  const perm = (arr: string[], cur: string[] = []) => {
+    if (!arr.length) { perms.push(cur); return; }
+    arr.forEach((v, i) => perm([...arr.slice(0, i), ...arr.slice(i + 1)], [...cur, v]));
+  };
+  perm(groups);
+  return perms.map((p) => Array.from({ length: periods }, (_, i) => p[i % p.length]));
+}
+
 interface RandRow {
   subjectId: string;
-  group: string;
-  block: number | string;
-  period1?: string;
-  period2?: string;
+  treatments: string[];
 }
 
 type Method = "parallel" | "crossover";
@@ -36,73 +59,77 @@ export default function RandomizationPage() {
   const [method, setMethod] = useState<Method>("parallel");
   const [n, setN] = useState(60);
   const [groupsRaw, setGroupsRaw] = useState("A,B");
-  const [blockSize, setBlockSize] = useState(4);
-  const [seed, setSeed] = useState(42);
+  const [periods, setPeriods] = useState(2);
   const [rows, setRows] = useState<RandRow[]>([]);
 
+  const groups = groupsRaw.split(",").map((s) => s.trim()).filter(Boolean);
+
   function generate() {
-    const groups = groupsRaw.split(",").map((s) => s.trim()).filter(Boolean);
-    const r = rng(seed);
-    const out: RandRow[] = [];
+    const r = rng(Date.now());
 
     if (method === "parallel") {
-      if (blockSize % groups.length !== 0) {
-        alert(`Block size must be a multiple of group count (${groups.length}).`);
-        return;
-      }
-      const per = blockSize / groups.length;
+      const out: RandRow[] = [];
       let i = 0;
       while (i < n) {
-        const blk: string[] = [];
-        groups.forEach((g) => { for (let k = 0; k < per; k++) blk.push(g); });
+        const blk = [...groups];
         shuffle(blk, r);
         for (const g of blk) {
           if (i >= n) break;
-          out.push({ subjectId: `S-${String(i + 1).padStart(3, "0")}`, group: g, block: Math.floor(i / blockSize) + 1 });
+          out.push({ subjectId: String(i + 1).padStart(3, "0"), treatments: [g] });
           i++;
         }
       }
+      setRows(out);
     } else {
-      if (groups.length !== 2) {
-        alert("Crossover design requires exactly 2 groups.");
-        return;
-      }
-      const sequences = [`${groups[0]}${groups[1]}`, `${groups[1]}${groups[0]}`];
-      const perBlock = Math.max(2, Math.round(blockSize / 2) * 2);
+      if (groups.length < 2) { alert("At least 2 groups required for crossover."); return; }
+      const seqs = getCrossoverSequences(groups, periods);
+      const out: RandRow[] = [];
       let i = 0;
       while (i < n) {
-        const blk: string[] = [];
-        for (let k = 0; k < perBlock / 2; k++) blk.push(...sequences);
+        const blk = [...seqs];
         shuffle(blk, r);
         for (const seq of blk) {
           if (i >= n) break;
-          out.push({
-            subjectId: `S-${String(i + 1).padStart(3, "0")}`,
-            group: seq,
-            block: Math.floor(i / perBlock) + 1,
-            period1: seq[0],
-            period2: seq[1],
-          });
+          out.push({ subjectId: String(i + 1).padStart(3, "0"), treatments: seq });
           i++;
         }
       }
+      setRows(out);
     }
-
-    setRows(out);
   }
 
-  function exportCSV() {
+  async function exportPDF() {
     if (!rows.length) { alert("Generate first."); return; }
-    let csv = method === "parallel"
-      ? "Subject ID,Allocation,Block\n"
-      : "Subject ID,Sequence,Period 1,Period 2,Block\n";
-    rows.forEach((r) => {
-      csv += method === "parallel"
-        ? `${r.subjectId},${r.group},${r.block}\n`
-        : `${r.subjectId},${r.group},${r.period1},${r.period2},${r.block}\n`;
+    const { default: jsPDF } = await import("jspdf");
+    const { default: autoTable } = await import("jspdf-autotable");
+
+    const doc = new jsPDF();
+    const periodHeaders = method === "parallel"
+      ? ["ID", "Group"]
+      : ["ID", ...Array.from({ length: periods }, (_, i) => `Period ${i + 1}`)];
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text("Randomization Schedule", 14, 18);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text(`Method: ${method === "parallel" ? "Parallel" : `Crossover (${periods} periods)`}  ·  Groups: ${groups.join(", ")}  ·  N = ${n}`, 14, 26);
+
+    autoTable(doc, {
+      head: [periodHeaders],
+      body: rows.map((r) => [r.subjectId, ...r.treatments]),
+      startY: 32,
+      styles: { font: "helvetica", fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [15, 20, 25], textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [239, 236, 227] },
     });
-    download(csv, "randomization.csv");
+
+    doc.save("randomization.pdf");
   }
+
+  const periodHeaders = method === "parallel"
+    ? ["Group"]
+    : Array.from({ length: periods }, (_, i) => `Period ${i + 1}`);
 
   return (
     <main>
@@ -113,7 +140,7 @@ export default function RandomizationPage() {
           <br />
           client-side only
           <br />
-          seed reproducible
+          block randomization
         </div>
       </div>
 
@@ -123,48 +150,59 @@ export default function RandomizationPage() {
           <span className="tag">configure</span>
         </div>
         <div className="panel-body">
-          <div className="controls">
 
-            {/* Method toggle */}
-            <div>
-              <label>Method</label>
-              <div className="method-toggle">
-                <button
-                  className={`method-btn${method === "parallel" ? " active" : ""}`}
-                  onClick={() => setMethod("parallel")}
-                >
-                  Parallel
-                </button>
-                <button
-                  className={`method-btn${method === "crossover" ? " active" : ""}`}
-                  onClick={() => setMethod("crossover")}
-                >
-                  Crossover
-                </button>
-              </div>
+          {/* Method — standalone row */}
+          <div style={{ marginBottom: "1.5rem" }}>
+            <label>Method</label>
+            <div className="method-toggle">
+              <button
+                className={`method-btn${method === "parallel" ? " active" : ""}`}
+                onClick={() => setMethod("parallel")}
+              >
+                Parallel
+              </button>
+              <button
+                className={`method-btn${method === "crossover" ? " active" : ""}`}
+                onClick={() => setMethod("crossover")}
+              >
+                Crossover
+              </button>
             </div>
+          </div>
 
+          {/* Parameter grid */}
+          <div className="controls">
             <div>
               <label>Sample size (N)</label>
-              <input type="number" value={n} min={2} max={2000} onChange={(e) => setN(parseInt(e.target.value) || 2)} />
+              <input type="number" value={n} min={2} max={2000}
+                onChange={(e) => setN(parseInt(e.target.value) || 2)} />
             </div>
             <div>
-              <label>{method === "crossover" ? "Groups (2 required)" : "Groups (comma-sep)"}</label>
-              <input type="text" value={groupsRaw} onChange={(e) => setGroupsRaw(e.target.value)} />
+              <label>Groups (comma-sep)</label>
+              <input type="text" value={groupsRaw}
+                onChange={(e) => setGroupsRaw(e.target.value)} />
             </div>
-            <div>
-              <label>Block size</label>
-              <input type="number" value={blockSize} min={2} max={20} onChange={(e) => setBlockSize(parseInt(e.target.value) || 2)} />
-            </div>
-            <div>
-              <label>Seed</label>
-              <input type="number" value={seed} onChange={(e) => setSeed(parseInt(e.target.value) || 0)} />
-            </div>
+            {method === "crossover" && (
+              <div>
+                <label>Periods</label>
+                <div className="method-toggle">
+                  {[1, 2, 3, 4].map((p) => (
+                    <button
+                      key={p}
+                      className={`method-btn${periods === p ? " active" : ""}`}
+                      onClick={() => setPeriods(p)}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="btn-row">
             <button className="btn" onClick={generate}>Generate</button>
-            <button className="btn ghost" onClick={exportCSV}>Export CSV</button>
+            <button className="btn ghost" onClick={exportPDF}>Export PDF</button>
           </div>
 
           {rows.length > 0 && (
@@ -172,39 +210,17 @@ export default function RandomizationPage() {
               <table>
                 <thead>
                   <tr>
-                    <th>Subject ID</th>
-                    {method === "parallel" ? (
-                      <>
-                        <th>Allocation</th>
-                        <th>Block #</th>
-                      </>
-                    ) : (
-                      <>
-                        <th>Sequence</th>
-                        <th>Period 1</th>
-                        <th>Period 2</th>
-                        <th>Block #</th>
-                      </>
-                    )}
+                    <th>ID</th>
+                    {periodHeaders.map((h) => <th key={h}>{h}</th>)}
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((row) => (
                     <tr key={row.subjectId}>
                       <td>{row.subjectId}</td>
-                      {method === "parallel" ? (
-                        <>
-                          <td className={`group-${row.group}`}>{row.group}</td>
-                          <td>{row.block}</td>
-                        </>
-                      ) : (
-                        <>
-                          <td style={{ fontWeight: 500 }}>{row.group}</td>
-                          <td className={`group-${row.period1}`}>{row.period1}</td>
-                          <td className={`group-${row.period2}`}>{row.period2}</td>
-                          <td>{row.block}</td>
-                        </>
-                      )}
+                      {row.treatments.map((t, i) => (
+                        <td key={i} className={`group-${t}`}>{t}</td>
+                      ))}
                     </tr>
                   ))}
                 </tbody>
@@ -215,13 +231,4 @@ export default function RandomizationPage() {
       </div>
     </main>
   );
-}
-
-function download(content: string, filename: string) {
-  const blob = new Blob([content], { type: "text/csv;charset=utf-8" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
