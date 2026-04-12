@@ -55,6 +55,10 @@ interface RandRow {
 
 type Method = "parallel" | "crossover";
 
+// Colors indexed by group position — works for any drug name
+const GROUP_COLORS_CSS = ["#5b8dc4", "#c85a40", "#5a7a3a", "#8a5a2b"];
+const GROUP_COLORS_PDF = [[91, 141, 196], [200, 90, 64], [90, 122, 58], [138, 90, 43]] as [number, number, number][];
+
 export default function RandomizationPage() {
   const [method, setMethod] = useState<Method>("parallel");
   const [n, setN] = useState(60);
@@ -101,26 +105,37 @@ export default function RandomizationPage() {
     const doc = new jsPDF();
     const pdfHeaders = ["ID", ...Array.from({ length: periods }, (_, i) => `Period ${i + 1}`)];
 
-    doc.setFont("helvetica", "bold");
+    doc.setFont("times", "bold");
     doc.setFontSize(14);
     doc.text("Randomization Schedule", 14, 18);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.text(`Method: ${method === "parallel" ? "Parallel" : "Crossover"}  ·  Periods: ${periods}  ·  Drugs: ${groups.join(", ")}  ·  N = ${n}`, 14, 26);
+    doc.setFont("courier", "normal");
+    doc.setFontSize(8);
+    doc.text(`METHOD: ${method.toUpperCase()}  ·  PERIODS: ${periods}  ·  DRUGS: ${groups.join(", ")}  ·  N = ${n}`, 14, 26);
 
     autoTable(doc, {
       head: [pdfHeaders],
       body: rows.map((r) => [r.subjectId, ...r.treatments]),
       startY: 32,
-      styles: { font: "helvetica", fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: [15, 20, 25], textColor: 255, fontStyle: "bold" },
-      alternateRowStyles: { fillColor: [239, 236, 227] },
+      styles: { font: "courier", fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [22, 20, 15], textColor: 232, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [30, 28, 22] },
+      didParseCell(data) {
+        if (data.section === "body" && data.column.index > 0) {
+          const cellVal = String(data.cell.raw);
+          const idx = groups.indexOf(cellVal);
+          if (idx >= 0) {
+            data.cell.styles.textColor = GROUP_COLORS_PDF[idx % GROUP_COLORS_PDF.length];
+            data.cell.styles.fontStyle = "bold";
+          }
+        }
+      },
     });
 
     doc.save("randomization.pdf");
   }
 
   const periodHeaders = Array.from({ length: periods }, (_, i) => `Period ${i + 1}`);
+  const groupIndex = (val: string) => groups.indexOf(val);
 
   return (
     <main>
@@ -207,9 +222,12 @@ export default function RandomizationPage() {
                   {rows.map((row) => (
                     <tr key={row.subjectId}>
                       <td>{row.subjectId}</td>
-                      {row.treatments.map((t, i) => (
-                        <td key={i} className={`group-${t}`}>{t}</td>
-                      ))}
+                      {row.treatments.map((t, i) => {
+                        const idx = groupIndex(t);
+                        return (
+                          <td key={i} style={{ color: GROUP_COLORS_CSS[idx % GROUP_COLORS_CSS.length], fontWeight: 500 }}>{t}</td>
+                        );
+                      })}
                     </tr>
                   ))}
                 </tbody>
