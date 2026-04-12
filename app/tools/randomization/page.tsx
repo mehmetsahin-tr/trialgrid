@@ -68,18 +68,12 @@ export default function RandomizationPage() {
     const r = rng(Date.now());
 
     if (method === "parallel") {
-      // Each subject is randomized to a group; they receive that group's drug in every period.
-      const out: RandRow[] = [];
-      let i = 0;
-      while (i < n) {
-        const blk = [...groups];
-        shuffle(blk, r);
-        for (const g of blk) {
-          if (i >= n) break;
-          out.push({ subjectId: String(i + 1).padStart(3, "0"), treatments: Array(periods).fill(g) });
-          i++;
-        }
-      }
+      // All subjects follow the same fixed schedule: Period 1 = drugs[0], Period 2 = drugs[1], …
+      const schedule = Array.from({ length: periods }, (_, i) => groups[i % groups.length]);
+      const out: RandRow[] = Array.from({ length: n }, (_, i) => ({
+        subjectId: String(i + 1).padStart(3, "0"),
+        treatments: schedule,
+      }));
       setRows(out);
     } else {
       if (groups.length < 2) { alert("At least 2 groups required for crossover."); return; }
@@ -154,13 +148,13 @@ export default function RandomizationPage() {
             <div className="method-toggle">
               <button
                 className={`method-btn${method === "parallel" ? " active" : ""}`}
-                onClick={() => setMethod("parallel")}
+                onClick={() => { setMethod("parallel"); setRows([]); }}
               >
                 Parallel
               </button>
               <button
                 className={`method-btn${method === "crossover" ? " active" : ""}`}
-                onClick={() => setMethod("crossover")}
+                onClick={() => { setMethod("crossover"); setRows([]); }}
               >
                 Crossover
               </button>
