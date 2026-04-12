@@ -3,13 +3,13 @@
 @tailwind utilities;
 
 :root {
-  --ink: #0f1419;
-  --paper: #f7f5ef;
-  --paper-2: #efece3;
-  --rule: #1a1f26;
-  --accent: #2b4a6f;
-  --accent-2: #b8432a;
-  --muted: #5a5f66;
+  --ink: #e8e4d8;
+  --paper: #16140f;
+  --paper-2: #1e1c16;
+  --rule: #2e2c24;
+  --accent: #5b8dc4;
+  --accent-2: #c85a40;
+  --muted: #7a7868;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
