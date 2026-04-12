@@ -96,6 +96,10 @@ footer a:hover { text-decoration: underline; }
 /* Mobile nav toggle */
 .nav-toggle { display: none; background: none; border: 1px solid var(--rule); padding: .5rem .7rem; cursor: pointer; font-family: var(--font-jetbrains-mono), monospace; font-size: .75rem; text-transform: uppercase; color: var(--ink); }
 
+/* Time table procedure grid */
+.tt-proc-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 2rem 2rem 2rem; gap: .5rem; align-items: center; }
+.tt-proc-header label { margin-bottom: 0; }
+
 /* Method toggle (segmented control) */
 .method-toggle { display: flex; border: 1px solid var(--rule); width: fit-content; }
 .method-btn { padding: .5rem 1.1rem; border: none; background: none; font-family: var(--font-jetbrains-mono), monospace; font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; cursor: pointer; color: var(--muted); transition: background .1s, color .1s; }
