@@ -25,40 +25,42 @@ export default function Header() {
 
   return (
     <header>
-      <Link href="/" className="logo" style={{ textDecoration: "none", color: "inherit" }}>
-        trial<span>·</span>grid
-      </Link>
-      <button
-        className="nav-toggle"
-        onClick={() => setOpen(!open)}
-        aria-label="Menu"
-      >
-        ≡ Menu
-      </button>
-      <nav className={open ? "open" : ""}>
-        {navItems.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={isActive(item.href) ? "active" : ""}
-            onClick={() => setOpen(false)}
-          >
-            {item.label}
-          </Link>
-        ))}
-        {/* Tool links visible only in mobile nav */}
-        <span className="nav-mobile-divider">Tools</span>
-        {mobileTools.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`nav-mobile-tool${isActive(item.href) ? " active" : ""}`}
-            onClick={() => setOpen(false)}
-          >
-            {item.label}
-          </Link>
-        ))}
-      </nav>
+      <div className="header-inner">
+        <Link href="/" className="logo" style={{ textDecoration: "none", color: "inherit" }}>
+          trial<span>·</span>grid
+        </Link>
+        <button
+          className="nav-toggle"
+          onClick={() => setOpen(!open)}
+          aria-label="Menu"
+        >
+          ≡ Menu
+        </button>
+        <nav className={open ? "open" : ""}>
+          {navItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={isActive(item.href) ? "active" : ""}
+              onClick={() => setOpen(false)}
+            >
+              {item.label}
+            </Link>
+          ))}
+          {/* Tool links visible only in mobile nav */}
+          <span className="nav-mobile-divider">Tools</span>
+          {mobileTools.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`nav-mobile-tool${isActive(item.href) ? " active" : ""}`}
+              onClick={() => setOpen(false)}
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+      </div>
     </header>
   );
 }
