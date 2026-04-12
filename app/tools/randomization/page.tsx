@@ -68,6 +68,7 @@ export default function RandomizationPage() {
     const r = rng(Date.now());
 
     if (method === "parallel") {
+      // Each subject is randomized to a group; they receive that group's drug in every period.
       const out: RandRow[] = [];
       let i = 0;
       while (i < n) {
@@ -75,7 +76,7 @@ export default function RandomizationPage() {
         shuffle(blk, r);
         for (const g of blk) {
           if (i >= n) break;
-          out.push({ subjectId: String(i + 1).padStart(3, "0"), treatments: [g] });
+          out.push({ subjectId: String(i + 1).padStart(3, "0"), treatments: Array(periods).fill(g) });
           i++;
         }
       }
@@ -104,19 +105,17 @@ export default function RandomizationPage() {
     const { default: autoTable } = await import("jspdf-autotable");
 
     const doc = new jsPDF();
-    const periodHeaders = method === "parallel"
-      ? ["ID", "Group"]
-      : ["ID", ...Array.from({ length: periods }, (_, i) => `Period ${i + 1}`)];
+    const pdfHeaders = ["ID", ...Array.from({ length: periods }, (_, i) => `Period ${i + 1}`)];
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(14);
     doc.text("Randomization Schedule", 14, 18);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
-    doc.text(`Method: ${method === "parallel" ? "Parallel" : `Crossover (${periods} periods)`}  ·  Groups: ${groups.join(", ")}  ·  N = ${n}`, 14, 26);
+    doc.text(`Method: ${method === "parallel" ? "Parallel" : "Crossover"}  ·  Periods: ${periods}  ·  Drugs: ${groups.join(", ")}  ·  N = ${n}`, 14, 26);
 
     autoTable(doc, {
-      head: [periodHeaders],
+      head: [pdfHeaders],
       body: rows.map((r) => [r.subjectId, ...r.treatments]),
       startY: 32,
       styles: { font: "helvetica", fontSize: 8, cellPadding: 2 },
@@ -127,9 +126,7 @@ export default function RandomizationPage() {
     doc.save("randomization.pdf");
   }
 
-  const periodHeaders = method === "parallel"
-    ? ["Group"]
-    : Array.from({ length: periods }, (_, i) => `Period ${i + 1}`);
+  const periodHeaders = Array.from({ length: periods }, (_, i) => `Period ${i + 1}`);
 
   return (
     <main>
@@ -178,12 +175,11 @@ export default function RandomizationPage() {
                 onChange={(e) => setN(parseInt(e.target.value) || 2)} />
             </div>
             <div>
-              <label>Groups (comma-sep)</label>
+              <label>Drugs (comma-sep)</label>
               <input type="text" value={groupsRaw}
                 onChange={(e) => setGroupsRaw(e.target.value)} />
             </div>
-            {method === "crossover" && (
-              <div>
+            <div>
                 <label>Periods</label>
                 <div className="method-toggle">
                   {[1, 2, 3, 4].map((p) => (
@@ -197,7 +193,6 @@ export default function RandomizationPage() {
                   ))}
                 </div>
               </div>
-            )}
           </div>
 
           <div className="btn-row">
