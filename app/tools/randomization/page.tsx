@@ -116,9 +116,11 @@ export default function RandomizationPage() {
       head: [pdfHeaders],
       body: rows.map((r) => [r.subjectId, ...r.treatments]),
       startY: 32,
-      styles: { font: "courier", fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: [22, 20, 15], textColor: 232, fontStyle: "bold" },
-      alternateRowStyles: { fillColor: [30, 28, 22] },
+      styles: { font: "courier", fontSize: 8, cellPadding: 2, textColor: [20, 20, 20], fillColor: [255, 255, 255] },
+      headStyles: { fillColor: [235, 235, 230], textColor: [20, 20, 20], fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [248, 247, 244] },
+      tableLineColor: [180, 178, 170],
+      tableLineWidth: 0.2,
       didParseCell(data) {
         if (data.section === "body" && data.column.index > 0) {
           const cellVal = String(data.cell.raw);
