@@ -28,8 +28,16 @@ nav a { background: none; border: 1px solid transparent; padding: .5rem .9rem; c
 nav a.active { color: var(--ink); border-color: var(--rule); background: var(--paper-2); }
 nav a:hover { color: var(--ink); }
 
-/* Main */
-main { max-width: 1200px; margin: 0 auto; padding: 3rem 2rem 5rem; }
+/* Page layout */
+.page-wrapper { max-width: 1200px; margin: 0 auto; display: flex; align-items: flex-start; }
+main { flex: 1; min-width: 0; padding: 3rem 2rem 5rem; }
+
+/* Sidebar */
+.sidebar { width: 180px; flex-shrink: 0; border-right: 1px solid var(--rule); padding: 2rem 1.5rem; position: sticky; top: 61px; min-height: calc(100vh - 61px); }
+.sidebar-label { font-family: var(--font-jetbrains-mono), monospace; font-size: .65rem; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); margin-bottom: .75rem; }
+.sidebar-link { display: block; font-family: var(--font-jetbrains-mono), monospace; font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); text-decoration: none; padding: .45rem 0; border-bottom: 1px solid transparent; transition: color .1s; }
+.sidebar-link:hover { color: var(--ink); }
+.sidebar-link.active { color: var(--ink); border-bottom-color: var(--rule); }
 
 /* Hero */
 .hero { display: grid; grid-template-columns: 1fr auto; gap: 2rem; align-items: end; padding-bottom: 2.5rem; border-bottom: 1px solid var(--rule); margin-bottom: 2.5rem; }
@@ -99,6 +107,10 @@ footer a:hover { text-decoration: underline; }
 .prose-block a:hover { text-decoration: underline; }
 .prose-block code { font-family: var(--font-jetbrains-mono), monospace; font-size: .85em; background: var(--paper-2); padding: .1em .35em; border: 1px solid var(--rule); }
 
+/* Mobile tool links in hamburger nav */
+.nav-mobile-divider { display: none; font-family: var(--font-jetbrains-mono), monospace; font-size: .65rem; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); padding: .7rem .5rem .3rem; }
+.nav-mobile-tool { display: none; }
+
 /* Responsive */
 @media (max-width: 768px) {
   header { padding: .9rem 1.1rem; flex-wrap: wrap; }
@@ -107,6 +119,10 @@ footer a:hover { text-decoration: underline; }
   nav.open { display: flex; }
   nav a { text-align: left; padding: .7rem .5rem; border: none; border-bottom: 1px solid var(--paper-2); }
   nav a.active { background: var(--paper-2); border-bottom-color: var(--rule); }
+  .nav-mobile-divider { display: block; }
+  .nav-mobile-tool { display: block; text-decoration: none; color: var(--muted); font-family: var(--font-jetbrains-mono), monospace; font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; padding: .7rem .5rem; border-bottom: 1px solid var(--paper-2); }
+  .nav-mobile-tool.active { color: var(--ink); background: var(--paper-2); }
+  .sidebar { display: none; }
 
   main { padding: 1.8rem 1.1rem 3rem; }
   .hero { grid-template-columns: 1fr; gap: .8rem; padding-bottom: 1.6rem; margin-bottom: 1.6rem; }

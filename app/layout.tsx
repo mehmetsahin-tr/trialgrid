@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Fraunces, JetBrains_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import Header from "./components/Header";
+import Sidebar from "./components/Sidebar";
 import Link from "next/link";
 
 const fraunces = Fraunces({
@@ -42,7 +43,10 @@ export default function RootLayout({
     >
       <body>
         <Header />
-        {children}
+        <div className="page-wrapper">
+          <Sidebar />
+          {children}
+        </div>
         <footer>
           © 2026 Trialgrid ·{" "}
           <Link href="/privacy">Privacy</Link> ·{" "}

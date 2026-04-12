@@ -6,9 +6,12 @@ import { useState } from "react";
 
 const navItems = [
   { href: "/", label: "Home" },
+  { href: "/about", label: "About" },
+];
+
+const mobileTools = [
   { href: "/tools/randomization", label: "Randomization" },
   { href: "/tools/timetable", label: "Time Table" },
-  { href: "/about", label: "About" },
 ];
 
 export default function Header() {
@@ -38,6 +41,18 @@ export default function Header() {
             key={item.href}
             href={item.href}
             className={isActive(item.href) ? "active" : ""}
+            onClick={() => setOpen(false)}
+          >
+            {item.label}
+          </Link>
+        ))}
+        {/* Tool links visible only in mobile nav */}
+        <span className="nav-mobile-divider">Tools</span>
+        {mobileTools.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={`nav-mobile-tool${isActive(item.href) ? " active" : ""}`}
             onClick={() => setOpen(false)}
           >
             {item.label}

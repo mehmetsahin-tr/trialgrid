@@ -1,9 +1,6 @@
-import Link from "next/link";
-
 export default function LandingPage() {
   return (
     <main>
-      {/* Hero */}
       <div className="hero">
         <h1>
           Clinical research tables, <em>digitized.</em>
@@ -23,52 +20,6 @@ export default function LandingPage() {
         accounts. No uploads. Your data never leaves this device.
       </p>
 
-      {/* Tools */}
-      <div className="panel">
-        <div className="panel-head">
-          <h2>Tools</h2>
-          <span className="tag">02 available</span>
-        </div>
-        <div
-          className="panel-body"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-            gap: "1rem",
-          }}
-        >
-          <Link
-            href="/tools/randomization"
-            className="tool-card"
-            style={{ textDecoration: "none", color: "inherit", display: "block" }}
-          >
-            <div className="mono">01 / randomization</div>
-            <h3 className="serif" style={{ fontSize: "1.3rem", margin: ".4rem 0" }}>
-              Allocation Schedule Generator
-            </h3>
-            <p style={{ color: "var(--muted)", fontSize: ".9rem" }}>
-              Simple and block randomization with reproducible seeds. Export to
-              CSV.
-            </p>
-          </Link>
-          <Link
-            href="/tools/timetable"
-            className="tool-card"
-            style={{ textDecoration: "none", color: "inherit", display: "block" }}
-          >
-            <div className="mono">02 / time table</div>
-            <h3 className="serif" style={{ fontSize: "1.3rem", margin: ".4rem 0" }}>
-              Schedule of Assessments
-            </h3>
-            <p style={{ color: "var(--muted)", fontSize: ".9rem" }}>
-              SPIRIT-style visit × procedure matrix. Click to mark, auto-saves
-              locally, export to CSV.
-            </p>
-          </Link>
-        </div>
-      </div>
-
-      {/* Why section */}
       <div
         style={{
           display: "grid",
@@ -76,7 +27,6 @@ export default function LandingPage() {
           gap: "2rem",
           borderTop: "1px solid var(--rule)",
           paddingTop: "2.5rem",
-          marginTop: ".5rem",
         }}
       >
         {[
