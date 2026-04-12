@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Fraunces, JetBrains_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import Header from "./components/Header";
+import Link from "next/link";
 
 const fraunces = Fraunces({
   subsets: ["latin"],
@@ -44,9 +45,9 @@ export default function RootLayout({
         {children}
         <footer>
           © 2026 Trialgrid ·{" "}
-          <a href="/privacy">Privacy</a> ·{" "}
-          <a href="/terms">Terms</a> ·{" "}
-          <a href="/contact">Contact</a> · Built for clinical researchers
+          <Link href="/privacy">Privacy</Link> ·{" "}
+          <Link href="/terms">Terms</Link> ·{" "}
+          <Link href="/contact">Contact</Link> · Built for clinical researchers
         </footer>
       </body>
     </html>

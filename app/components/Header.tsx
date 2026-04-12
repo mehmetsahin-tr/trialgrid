@@ -6,8 +6,8 @@ import { useState } from "react";
 
 const navItems = [
   { href: "/", label: "Home" },
-  { href: "/randomization", label: "Randomization" },
-  { href: "/time-table", label: "Time Table" },
+  { href: "/tools/randomization", label: "Randomization" },
+  { href: "/tools/timetable", label: "Time Table" },
   { href: "/about", label: "About" },
 ];
 
@@ -15,9 +15,14 @@ export default function Header() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
+  function isActive(href: string) {
+    if (href === "/") return pathname === "/";
+    return pathname.startsWith(href);
+  }
+
   return (
     <header>
-      <Link href="/" className="logo">
+      <Link href="/" className="logo" style={{ textDecoration: "none", color: "inherit" }}>
         trial<span>·</span>grid
       </Link>
       <button
@@ -32,7 +37,7 @@ export default function Header() {
           <Link
             key={item.href}
             href={item.href}
-            className={pathname === item.href ? "active" : ""}
+            className={isActive(item.href) ? "active" : ""}
             onClick={() => setOpen(false)}
           >
             {item.label}

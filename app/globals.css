@@ -91,6 +91,14 @@ footer a:hover { text-decoration: underline; }
 .tool-card { border: 1px solid var(--rule); padding: 1.2rem; cursor: pointer; transition: background .1s; }
 .tool-card:hover { background: var(--paper-2); }
 
+/* Prose pages (privacy, terms, contact) */
+.prose-block { max-width: 62ch; font-size: 1rem; line-height: 1.75; }
+.prose-block h2 { font-family: var(--font-fraunces), serif; font-weight: 600; font-size: 1.1rem; letter-spacing: -.01em; margin: 2rem 0 .5rem; }
+.prose-block p { color: var(--muted); margin-bottom: .75rem; }
+.prose-block a { color: var(--accent-2); text-decoration: none; }
+.prose-block a:hover { text-decoration: underline; }
+.prose-block code { font-family: var(--font-jetbrains-mono), monospace; font-size: .85em; background: var(--paper-2); padding: .1em .35em; border: 1px solid var(--rule); }
+
 /* Responsive */
 @media (max-width: 768px) {
   header { padding: .9rem 1.1rem; flex-wrap: wrap; }
