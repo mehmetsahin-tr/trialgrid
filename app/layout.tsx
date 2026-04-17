@@ -22,3 +22,40 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+  weight: ["400", "500", "600"],
+});
+
+export const metadata: Metadata = {
+  title: "trialgrids — Clinical Research Tables, Digitized",
+  description:
+    "Generate randomization schedules and SPIRIT-style assessment tables in your browser. No accounts. No uploads. Your data never leaves this device.",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
+  return (
+    <html
+      lang="en"
+      className={`${fraunces.variable} ${jetbrainsMono.variable} ${inter.variable}`}
+    >
+      <body>
+        <Header />
+        <div className="page-wrapper">
+          <Sidebar />
+          {children}
+        </div>
+        <footer>
+          © 2026 Trialgrids ·{" "}
+          <Link href="/privacy">Privacy</Link> ·{" "}
+          <Link href="/terms">Terms</Link> ·{" "}
+          <Link href="/contact">Contact</Link> · Built for clinical researchers
+        </footer>
+        <Analytics />
+      </body>
+    </html>
+  );
+}
