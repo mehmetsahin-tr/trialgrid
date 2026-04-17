@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Terms of Use — Trialgrid",
+  title: "Terms of Use — trialgrids",
 };
 
 export default function TermsPage() {
@@ -19,13 +19,13 @@ export default function TermsPage() {
       <div className="prose-block">
         <h2>1. Acceptance</h2>
         <p>
-          By using Trialgrid you agree to these terms. If you do not agree,
+          By using trialgrids you agree to these terms. If you do not agree,
           please do not use the service.
         </p>
 
         <h2>2. Not a medical device</h2>
         <p>
-          Trialgrid is a documentation aid. It is not a medical device, a
+          trialgrids is a documentation aid. It is not a medical device, a
           clinical data management system, or a substitute for your
           institution&apos;s validated systems. It is not intended for primary
           capture of patient data. Always follow your sponsor&apos;s data
@@ -43,14 +43,14 @@ export default function TermsPage() {
 
         <h2>4. Limitation of liability</h2>
         <p>
-          To the maximum extent permitted by law, Trialgrid and its authors
+          To the maximum extent permitted by law, trialgrids and its authors
           shall not be liable for any direct, indirect, incidental, or
           consequential damages arising from your use of the service.
         </p>
 
         <h2>5. Intellectual property</h2>
         <p>
-          The Trialgrid source code is open-source (see repository for
+          The trialgrids source code is open-source (see repository for
           licence). Content you generate using the tools belongs to you.
         </p>
 

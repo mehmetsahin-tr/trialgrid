@@ -6,8 +6,6 @@ export default function LandingPage() {
           Clinical research tables, <em>digitized.</em>
         </h1>
         <div className="meta">
-          v0.1 · prototype
-          <br />
           est. 2026
           <br />
           made for researchers

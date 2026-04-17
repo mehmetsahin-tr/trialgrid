@@ -56,7 +56,7 @@ main { flex: 1; min-width: 0; padding: 3rem 0 5rem 2rem; }
 .panel-body { padding: 1.5rem; }
 
 /* Form controls */
-.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; align-items: end; }
 label { display: block; font-family: var(--font-jetbrains-mono), monospace; font-size: .68rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-bottom: .4rem; }
 input, select, textarea { width: 100%; padding: .6rem .75rem; border: 1px solid var(--rule); background: var(--paper); font-family: var(--font-jetbrains-mono), monospace; font-size: .85rem; color: var(--ink); }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
@@ -97,7 +97,7 @@ footer a:hover { text-decoration: underline; }
 .nav-toggle { display: none; background: none; border: 1px solid var(--rule); padding: .5rem .7rem; cursor: pointer; font-family: var(--font-jetbrains-mono), monospace; font-size: .75rem; text-transform: uppercase; color: var(--ink); }
 
 /* Time table procedure grid */
-.tt-proc-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 2rem 2rem 2rem; gap: .5rem; align-items: center; }
+.tt-proc-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 2rem 2rem 2rem 2rem; gap: .5rem; align-items: center; }
 .tt-proc-header label { margin-bottom: 0; }
 
 /* Method toggle (segmented control) */

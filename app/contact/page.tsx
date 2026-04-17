@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Contact — Trialgrid",
+  title: "Contact — trialgrids",
 };
 
 export default function ContactPage() {
@@ -20,7 +20,7 @@ export default function ContactPage() {
 
       <div className="prose-block">
         <p style={{ marginBottom: "2rem" }}>
-          Trialgrid is maintained as an open-source project. The best ways to
+          trialgrids is maintained as an open-source project. The best ways to
           reach us:
         </p>
 
@@ -36,12 +36,17 @@ export default function ContactPage() {
             {
               label: "Bug reports & feature requests",
               body: "Open an issue on GitHub. Include steps to reproduce and your browser/OS.",
-              link: { href: "https://github.com", text: "github.com/trialgrid" },
+              link: { href: "https://github.com", text: "github.com/trialgrids" },
             },
             {
               label: "General questions",
               body: "Use GitHub Discussions for questions about usage, methodology, or the roadmap.",
               link: { href: "https://github.com", text: "Discussions →" },
+            },
+            {
+              label: "Direct contact",
+              body: "For anything else — partnerships, enterprise use, or direct feedback.",
+              link: { href: "mailto:info@trialgrids.com", text: "info@trialgrids.com" },
             },
           ].map((item) => (
             <div
@@ -70,7 +75,7 @@ export default function ContactPage() {
         </div>
 
         <div className="notice">
-          <strong>Note.</strong> Trialgrid is a volunteer-maintained project.
+          <strong>Note.</strong> trialgrids is a volunteer-maintained project.
           We aim to respond within a few days but cannot guarantee response
           times.
         </div>

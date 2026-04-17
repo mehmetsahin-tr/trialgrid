@@ -14,7 +14,7 @@ export default function AboutPage() {
 
       <div style={{ maxWidth: "62ch", fontSize: "1.02rem", lineHeight: 1.7 }}>
         <p style={{ marginBottom: "1rem" }}>
-          <strong className="serif">Trialgrid</strong> is a free browser-based
+          <strong className="serif">Trialgrids</strong> is a free browser-based
           toolkit for clinical research coordinators, investigators, and
           methodologists. It digitizes the small paper tables that still clutter
           most trial workflows — randomization lists, schedules of assessment,
@@ -27,7 +27,7 @@ export default function AboutPage() {
           directly from your machine.
         </p>
         <p style={{ marginBottom: "1rem" }}>
-          <strong className="serif">Not a medical device.</strong> Trialgrid is
+          <strong className="serif">Not a medical device.</strong> Trialgrids is
           a documentation aid. It does not handle patient-identifying information
           and is not intended for primary trial data capture. Always follow your
           sponsor&apos;s data management plan and applicable regulations (GCP, GDPR,

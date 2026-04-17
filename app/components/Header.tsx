@@ -27,7 +27,7 @@ export default function Header() {
     <header>
       <div className="header-inner">
         <Link href="/" className="logo" style={{ textDecoration: "none", color: "inherit" }}>
-          trial<span>·</span>grid
+          trial<span>·</span>grids
         </Link>
         <button
           className="nav-toggle"

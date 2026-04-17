@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy — Trialgrid",
+  title: "Privacy Policy — trialgrids",
 };
 
 export default function PrivacyPage() {
@@ -19,7 +19,7 @@ export default function PrivacyPage() {
       <div className="prose-block">
         <h2>1. No data collection</h2>
         <p>
-          Trialgrid runs entirely in your browser. We do not collect, transmit,
+          trialgrids runs entirely in your browser. We do not collect, transmit,
           store, or process any data you enter into the tools. Your randomization
           parameters, study titles, visit names, and assessment marks never leave
           your device.
@@ -42,7 +42,7 @@ export default function PrivacyPage() {
 
         <h2>4. Advertising</h2>
         <p>
-          Trialgrid may display non-personalised Google AdSense ads to support
+          trialgrids may display non-personalised Google AdSense ads to support
           free access. Google&apos;s ad serving does not use any data you enter
           into the tools. For Google&apos;s own privacy practices, see{" "}
           <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">

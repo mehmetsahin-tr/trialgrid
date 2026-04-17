@@ -28,7 +28,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Trialgrid — Clinical Research Tables, Digitized",
+  title: "trialgrids — Clinical Research Tables, Digitized",
   description:
     "Generate randomization schedules and SPIRIT-style assessment tables in your browser. No accounts. No uploads. Your data never leaves this device.",
 };
@@ -48,7 +48,7 @@ export default function RootLayout({
           {children}
         </div>
         <footer>
-          © 2026 Trialgrid ·{" "}
+          © 2026 Trialgrids ·{" "}
           <Link href="/privacy">Privacy</Link> ·{" "}
           <Link href="/terms">Terms</Link> ·{" "}
           <Link href="/contact">Contact</Link> · Built for clinical researchers

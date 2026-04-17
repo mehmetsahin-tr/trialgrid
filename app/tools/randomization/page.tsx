@@ -62,6 +62,7 @@ const GROUP_COLORS_PDF = [[91, 141, 196], [200, 90, 64], [90, 122, 58], [138, 90
 export default function RandomizationPage() {
   const [method, setMethod] = useState<Method>("parallel");
   const [n, setN] = useState(60);
+  const [nRaw, setNRaw] = useState("60");
   const [groupsRaw, setGroupsRaw] = useState("A,B");
   const [periods, setPeriods] = useState(2);
   const [rows, setRows] = useState<RandRow[]>([]);
@@ -110,7 +111,7 @@ export default function RandomizationPage() {
     doc.text("Randomization Schedule", 14, 18);
     doc.setFont("courier", "normal");
     doc.setFontSize(8);
-    doc.text(`METHOD: ${method.toUpperCase()}  ·  PERIODS: ${periods}  ·  DRUGS: ${groups.join(", ")}  ·  N = ${n}`, 14, 26);
+    doc.text(`METHOD: ${method.toUpperCase()}  ·  PERIODS: ${periods}  ·  DRUGS: ${groups.join(", ")}  ·  Volunteer Size = ${n}`, 14, 26);
 
     autoTable(doc, {
       head: [pdfHeaders],
@@ -122,6 +123,9 @@ export default function RandomizationPage() {
       tableLineColor: [180, 178, 170],
       tableLineWidth: 0.2,
       didParseCell(data) {
+        if (data.column.index > 0) {
+          data.cell.styles.halign = "center";
+        }
         if (data.section === "body" && data.column.index > 0) {
           const cellVal = String(data.cell.raw);
           const idx = groups.indexOf(cellVal);
@@ -196,9 +200,22 @@ export default function RandomizationPage() {
           {/* Parameter grid */}
           <div className="controls">
             <div>
-              <label>Sample size (N)</label>
-              <input type="number" value={n} min={2} max={2000}
-                onChange={(e) => setN(parseInt(e.target.value) || 2)} />
+              <label>Total volunteers</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={nRaw}
+                onChange={e => {
+                  const raw = e.target.value.replace(/[^0-9]/g, "");
+                  setNRaw(raw);
+                  const num = parseInt(raw);
+                  if (!isNaN(num) && num >= 2 && num <= 2000) setN(num);
+                }}
+                onBlur={() => {
+                  const num = parseInt(nRaw);
+                  if (isNaN(num) || num < 2) setNRaw(String(n));
+                }}
+              />
             </div>
             <div>
               <label>Drugs (comma-sep)</label>
@@ -232,7 +249,7 @@ export default function RandomizationPage() {
                 <thead>
                   <tr>
                     <th>ID</th>
-                    {periodHeaders.map((h) => <th key={h}>{h}</th>)}
+                    {periodHeaders.map((h) => <th key={h} style={{ textAlign: "center" }}>{h}</th>)}
                   </tr>
                 </thead>
                 <tbody>
@@ -242,7 +259,7 @@ export default function RandomizationPage() {
                       {row.treatments.map((t, i) => {
                         const idx = groupIndex(t);
                         return (
-                          <td key={i} style={{ color: GROUP_COLORS_CSS[idx % GROUP_COLORS_CSS.length], fontWeight: 500 }}>{t}</td>
+                          <td key={i} style={{ color: GROUP_COLORS_CSS[idx % GROUP_COLORS_CSS.length], fontWeight: 500, textAlign: "center" }}>{t}</td>
                         );
                       })}
                     </tr>
