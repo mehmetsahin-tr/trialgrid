@@ -28,10 +28,37 @@ const inter = Inter({
   weight: ["400", "500", "600"],
 });
 
+const TITLE = "trialgrids — Clinical Research Tables, Digitized";
+const DESCRIPTION =
+  "Generate randomization schedules and SPIRIT-style assessment tables in your browser. No accounts. No uploads. Your data never leaves this device.";
+
 export const metadata: Metadata = {
-  title: "trialgrids — Clinical Research Tables, Digitized",
-  description:
-    "Generate randomization schedules and SPIRIT-style assessment tables in your browser. No accounts. No uploads. Your data never leaves this device.",
+  metadataBase: new URL("https://trialgrids.com"),
+  title: TITLE,
+  description: DESCRIPTION,
+  robots: { index: true, follow: true },
+  openGraph: {
+    title: TITLE,
+    description: DESCRIPTION,
+    url: "https://trialgrids.com",
+    siteName: "Trialgrids",
+    type: "website",
+    locale: "en_US",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Trialgrids — Clinical Research Tables, Digitized",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: TITLE,
+    description: DESCRIPTION,
+    images: ["/og-image.png"],
+  },
 };
 
 export default function RootLayout({

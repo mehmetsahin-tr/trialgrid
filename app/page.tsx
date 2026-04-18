@@ -1,3 +1,5 @@
+import ShareButton from "./components/ShareButton";
+
 export default function LandingPage() {
   return (
     <main>
@@ -54,6 +56,10 @@ export default function LandingPage() {
             </p>
           </div>
         ))}
+      </div>
+
+      <div style={{ marginTop: "2.5rem", borderTop: "1px solid var(--rule)", paddingTop: "1.5rem" }}>
+        <ShareButton />
       </div>
     </main>
   );
