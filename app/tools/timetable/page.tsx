@@ -61,6 +61,8 @@ export default function TimeTablePage() {
   const [built, setBuilt] = useState(false);
   const [missingRaw, setMissingRaw] = useState("");
   const [nRaw, setNRaw] = useState(String(INITIAL.n));
+  const [stationsRaw, setStationsRaw] = useState(String(INITIAL.stations));
+  const [intervalRaw, setIntervalRaw] = useState(String(INITIAL.interval));
 
   function save(next: Config) {
     setCfg(next);
@@ -317,6 +319,7 @@ export default function TimeTablePage() {
       doc.setFontSize(7);
       doc.setTextColor(140, 138, 128);
       doc.text(`Page ${p} / ${total}`, pageW - 14, doc.internal.pageSize.height - 8, { align: "right" });
+      doc.text("trialgrids.com", 14, doc.internal.pageSize.height - 8);
     }
 
     doc.save("timetable.pdf");
@@ -389,11 +392,39 @@ export default function TimeTablePage() {
             </div>
             <div>
               <label>Stations</label>
-              <input type="number" min={1} max={20} value={cfg.stations} onChange={e => save({ ...cfg, stations: parseInt(e.target.value) || 1 })} />
+              <input
+                type="text"
+                inputMode="numeric"
+                value={stationsRaw}
+                onChange={e => {
+                  const raw = e.target.value.replace(/[^0-9]/g, "");
+                  setStationsRaw(raw);
+                  const num = parseInt(raw);
+                  if (!isNaN(num) && num >= 1 && num <= 20) save({ ...cfg, stations: num });
+                }}
+                onBlur={() => {
+                  const num = parseInt(stationsRaw);
+                  if (isNaN(num) || num < 1) setStationsRaw(String(cfg.stations));
+                }}
+              />
             </div>
             <div>
               <label>Minute interval</label>
-              <input type="number" min={1} max={60} value={cfg.interval} onChange={e => save({ ...cfg, interval: parseInt(e.target.value) || 1 })} />
+              <input
+                type="text"
+                inputMode="numeric"
+                value={intervalRaw}
+                onChange={e => {
+                  const raw = e.target.value.replace(/[^0-9]/g, "");
+                  setIntervalRaw(raw);
+                  const num = parseInt(raw);
+                  if (!isNaN(num) && num >= 1 && num <= 60) save({ ...cfg, interval: num });
+                }}
+                onBlur={() => {
+                  const num = parseInt(intervalRaw);
+                  if (isNaN(num) || num < 1) setIntervalRaw(String(cfg.interval));
+                }}
+              />
             </div>
           </div>
 

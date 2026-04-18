@@ -61,8 +61,8 @@ const GROUP_COLORS_PDF = [[91, 141, 196], [200, 90, 64], [90, 122, 58], [138, 90
 
 export default function RandomizationPage() {
   const [method, setMethod] = useState<Method>("parallel");
-  const [n, setN] = useState(60);
-  const [nRaw, setNRaw] = useState("60");
+  const [n, setN] = useState(24);
+  const [nRaw, setNRaw] = useState("24");
   const [groupsRaw, setGroupsRaw] = useState("A,B");
   const [periods, setPeriods] = useState(2);
   const [rows, setRows] = useState<RandRow[]>([]);
@@ -137,7 +137,6 @@ export default function RandomizationPage() {
       },
     });
 
-    // Add "Page X / Y" to every page after table is fully rendered
     const totalPages = doc.getNumberOfPages();
     for (let p = 1; p <= totalPages; p++) {
       doc.setPage(p);
@@ -149,6 +148,11 @@ export default function RandomizationPage() {
         doc.internal.pageSize.width - 14,
         doc.internal.pageSize.height - 8,
         { align: "right" }
+      );
+      doc.text(
+        "trialgrids.com",
+        14,
+        doc.internal.pageSize.height - 8
       );
     }
 

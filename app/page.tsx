@@ -13,9 +13,9 @@ export default function LandingPage() {
       </div>
 
       <p className="lede">
-        Generate randomization schedules and SPIRIT-style
-        schedule-of-assessments tables — entirely in your browser. No
-        accounts. No uploads. Your data never leaves this device.
+        Create randomization tables and time table for clinical trials. Access
+        them directly from your browser without any privacy concerns—for free,
+        for now. We&apos;ll be offering many more tools soon.
       </p>
 
       <div
@@ -34,14 +34,14 @@ export default function LandingPage() {
             body: "Everything runs in your browser. No server ever sees your study data.",
           },
           {
-            label: "02 / reproducible",
-            title: "Seeded randomization",
-            body: "Set a seed and get the same sequence every time — auditable and shareable.",
+            label: "02 / practical",
+            title: "Done in minutes",
+            body: "Generate a randomization table or a full time table in minutes — no setup, no learning curve.",
           },
           {
-            label: "03 / standard",
-            title: "SPIRIT-compliant tables",
-            body: "Assessment schedules built to the structure clinical reviewers expect.",
+            label: "03 / publication-ready",
+            title: "Export without reformatting",
+            body: "Clean PDFs and tables that drop straight into protocols, supplements, and submissions — no cleanup required.",
           },
         ].map((item) => (
           <div key={item.label}>

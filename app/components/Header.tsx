@@ -17,10 +17,16 @@ const mobileTools = [
 export default function Header() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
 
   function isActive(href: string) {
     if (href === "/") return pathname === "/";
     return pathname.startsWith(href);
+  }
+
+  function closeAll() {
+    setOpen(false);
+    setToolsOpen(false);
   }
 
   return (
@@ -31,7 +37,7 @@ export default function Header() {
         </Link>
         <button
           className="nav-toggle"
-          onClick={() => setOpen(!open)}
+          onClick={() => { setOpen(!open); setToolsOpen(false); }}
           aria-label="Menu"
         >
           ≡ Menu
@@ -42,19 +48,23 @@ export default function Header() {
               key={item.href}
               href={item.href}
               className={isActive(item.href) ? "active" : ""}
-              onClick={() => setOpen(false)}
+              onClick={closeAll}
             >
               {item.label}
             </Link>
           ))}
-          {/* Tool links visible only in mobile nav */}
-          <span className="nav-mobile-divider">Tools</span>
-          {mobileTools.map((item) => (
+          <button
+            className={`nav-mobile-divider nav-tools-toggle${toolsOpen ? " tools-open" : ""}`}
+            onClick={() => setToolsOpen(!toolsOpen)}
+          >
+            Tools <span className="tools-chevron">{toolsOpen ? "▲" : "▼"}</span>
+          </button>
+          {toolsOpen && mobileTools.map((item) => (
             <Link
               key={item.href}
               href={item.href}
               className={`nav-mobile-tool${isActive(item.href) ? " active" : ""}`}
-              onClick={() => setOpen(false)}
+              onClick={closeAll}
             >
               {item.label}
             </Link>
