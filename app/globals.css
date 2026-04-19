@@ -46,7 +46,8 @@ main { flex: 1; min-width: 0; padding: 3rem 0 5rem 2rem; }
 .hero h1 em { font-style: italic; color: var(--accent); }
 .hero .meta { text-align: right; font-family: var(--font-jetbrains-mono), monospace; font-size: .72rem; color: var(--muted); line-height: 1.8; }
 
-.lede { max-width: 60ch; margin-bottom: 2rem; color: var(--muted); font-size: 1.02rem; }
+.eyebrow { font-family: var(--font-jetbrains-mono), monospace; font-size: .75rem; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); margin-bottom: .5rem; }
+.lede { max-width: 62ch; margin-top: 1rem; margin-bottom: 2rem; color: var(--muted); font-size: 1.02rem; line-height: 1.6; }
 
 /* Panel */
 .panel { border: 1px solid var(--rule); background: var(--paper); margin-bottom: 2rem; }

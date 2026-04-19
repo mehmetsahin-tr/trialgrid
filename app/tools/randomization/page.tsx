@@ -165,7 +165,15 @@ export default function RandomizationPage() {
   return (
     <main>
       <div className="hero">
-        <h1>Randomization.</h1>
+        <div>
+          <p className="eyebrow">
+            Randomization for bioequivalence &amp; crossover trials
+          </p>
+          <h1>Randomization.</h1>
+          <p className="lede">
+            Generate randomization schedules for bioequivalence, bioavailability, and crossover clinical trials. Williams design, 2×2, parallel, and Latin square methods — all seeded, reproducible, and exportable. Runs entirely in your browser; your data never leaves this device.
+          </p>
+        </div>
         <div className="meta">
           tool 01
           <br />
@@ -177,7 +185,7 @@ export default function RandomizationPage() {
 
       <div className="panel">
         <div className="panel-head">
-          <h2>Parameters</h2>
+          <h2>Study parameters</h2>
           <span className="tag">configure</span>
         </div>
         <div className="panel-body">
