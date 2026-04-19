@@ -329,7 +329,15 @@ export default function TimeTablePage() {
   return (
     <main>
       <div className="hero">
-        <h1>Time table.</h1>
+        <div>
+          <p className="eyebrow">
+            Schedule of assessments &amp; study time tables
+          </p>
+          <h1>Time table.</h1>
+          <p className="lede">
+            Build SPIRIT-compliant schedule of assessments and study day time tables for clinical trials, bioequivalence, and bioavailability studies. Design visits, procedures, and time-windows — then export publication-ready PDFs and tables. Everything runs in your browser; your data never leaves this device.
+          </p>
+        </div>
         <div className="meta">tool 02<br />station × procedure<br />clinical schedule</div>
       </div>
 
