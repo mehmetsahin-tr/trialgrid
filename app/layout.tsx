@@ -75,7 +75,7 @@ export default function RootLayout({
           <Sidebar />
           {children}
         </div>
-        <<footer>
+        <footer>
           <div className="footer-tools">
             <Link href="/tools/randomization">Randomization</Link>
             <span className="footer-sep">·</span>
