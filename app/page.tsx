@@ -1,4 +1,29 @@
+import type { Metadata } from "next";
 import ShareButton from "./components/ShareButton";
+
+export const metadata: Metadata = {
+  title: "Trialgrids — Clinical Research Tools: Randomization & Time Table Generator",
+  description:
+    "Free, browser-based clinical research tools. Randomization for BE/BA and crossover trials. Time table and SPIRIT schedule of assessments. No accounts.",
+  alternates: {
+    canonical: "https://trialgrids.com",
+  },
+  openGraph: {
+    title: "Trialgrids — Clinical Research Tools: Randomization & Time Table Generator",
+    description:
+      "Free, browser-based clinical research tools. Randomization for BE/BA and crossover trials. Time table and SPIRIT schedule of assessments.",
+    url: "https://trialgrids.com",
+    siteName: "Trialgrids",
+    type: "website",
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Trialgrids — Clinical Research Tools: Randomization & Time Table Generator",
+    description:
+      "Free, browser-based clinical research tools. Randomization and time tables for clinical, BE/BA, and crossover trials.",
+  },
+};
 
 export default function LandingPage() {
   return (
@@ -15,9 +40,11 @@ export default function LandingPage() {
       </div>
 
       <p className="lede">
-        Create randomization tables and time table for clinical trials. Access
-        them directly from your browser without any privacy concerns—for free,
-        for now. We&apos;ll be offering many more tools soon.
+        Free, browser-based clinical research tools. Generate randomization
+        schedules for bioequivalence, bioavailability, and crossover studies —
+        or build time tables and SPIRIT-compliant schedule of assessments for
+        your clinical trials. Everything runs locally; your data never leaves
+        this device. No accounts, no uploads.
       </p>
 
       <div
