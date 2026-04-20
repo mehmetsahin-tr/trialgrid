@@ -1,3 +1,30 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "About Trialgrids — Free Clinical Research Tools for Randomization & Time Tables",
+  description:
+    "Trialgrids is a free, browser-based toolkit for clinical researchers. Randomization for BE/BA and crossover trials, plus SPIRIT schedule of assessments and time tables.",
+  alternates: {
+    canonical: "https://trialgrids.com/about",
+  },
+  openGraph: {
+    title: "About Trialgrids — Free Clinical Research Tools",
+    description:
+      "Trialgrids is a free, browser-based toolkit for clinical researchers. Randomization and time tables for clinical, BE/BA, and crossover trials.",
+    url: "https://trialgrids.com/about",
+    siteName: "Trialgrids",
+    type: "website",
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "About Trialgrids — Free Clinical Research Tools",
+    description:
+      "Free, browser-based clinical research tools. Randomization and time tables for BE/BA and crossover trials.",
+  },
+};
+
 export default function AboutPage() {
   return (
     <main>
@@ -17,7 +44,9 @@ export default function AboutPage() {
           <strong className="serif">Trialgrids</strong> is a free browser-based
           toolkit for clinical research coordinators, investigators, and
           methodologists. It digitizes the small paper tables that still clutter
-          most trial workflows — randomization lists, schedules of assessment,
+          most trial workflows —{" "}
+          <Link href="/tools/randomization">randomization lists</Link>,{" "}
+          <Link href="/tools/timetable">schedules of assessment</Link>,
           and more on the way.
         </p>
         <p style={{ marginBottom: "1rem" }}>
