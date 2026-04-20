@@ -75,11 +75,18 @@ export default function RootLayout({
           <Sidebar />
           {children}
         </div>
-        <footer>
-          © 2026 Trialgrids ·{" "}
-          <Link href="/privacy">Privacy</Link> ·{" "}
-          <Link href="/terms">Terms</Link> ·{" "}
-          <Link href="/contact">Contact</Link> · Built for clinical researchers
+        <<footer>
+          <div className="footer-tools">
+            <Link href="/tools/randomization">Randomization</Link>
+            <span className="footer-sep">·</span>
+            <Link href="/tools/timetable">Time Table</Link>
+          </div>
+          <div className="footer-legal">
+            © 2026 Trialgrids ·{" "}
+            <Link href="/privacy">Privacy</Link> ·{" "}
+            <Link href="/terms">Terms</Link> ·{" "}
+            <Link href="/contact">Contact</Link> · Built for clinical researchers
+          </div>
         </footer>
         <Analytics />
       </body>
