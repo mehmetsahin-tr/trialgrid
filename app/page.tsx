@@ -16,12 +16,21 @@ export const metadata: Metadata = {
     siteName: "Trialgrids",
     type: "website",
     locale: "en_US",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Trialgrids — Clinical Research Tables, Digitized",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Trialgrids — Clinical Research Tools: Randomization & Time Table Generator",
     description:
       "Free, browser-based clinical research tools. Randomization and time tables for clinical, BE/BA, and crossover trials.",
+    images: ["/og-image.png"],
   },
 };
 
