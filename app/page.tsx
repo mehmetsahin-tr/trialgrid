@@ -50,10 +50,10 @@ export default function LandingPage() {
 
       <p className="lede">
         Free, browser-based clinical research tools. Generate randomization
-        schedules for bioequivalence, bioavailability, and crossover studies —
-        or build time tables and SPIRIT-compliant schedule of assessments for
-        your clinical trials. Everything runs locally; your data never leaves
-        this device. No accounts, no uploads.
+        schedules for bioequivalence, bioavailability, and crossover studies;
+        build time tables and SPIRIT-compliant schedule of assessments; and
+        keep meal intake logs for study periods. Everything runs locally; your
+        data never leaves this device. No accounts, no uploads.
       </p>
 
       <div
@@ -94,7 +94,7 @@ export default function LandingPage() {
         ))}
       </div>
 
-      <div style={{ marginTop: "2.5rem", borderTop: "1px solid var(--rule)", paddingTop: "1.5rem" }}>
+<div style={{ marginTop: "2rem", borderTop: "1px solid var(--rule)", paddingTop: "1.5rem" }}>
         <ShareButton />
       </div>
     </main>

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const tools = [
   { href: "/tools/randomization", label: "Randomization" },
   { href: "/tools/timetable", label: "Time Table" },
+  { href: "/tools/meal-log", label: "Meal Log" },
 ];
 
 export default function Sidebar() {

@@ -80,6 +80,8 @@ export default function RootLayout({
             <Link href="/tools/randomization">Randomization</Link>
             <span className="footer-sep">·</span>
             <Link href="/tools/timetable">Time Table</Link>
+            <span className="footer-sep">·</span>
+            <Link href="/tools/meal-log">Meal Log</Link>
           </div>
           <div className="footer-legal">
             © 2026 Trialgrids ·{" "}

@@ -46,7 +46,8 @@ export default function AboutPage() {
           methodologists. It digitizes the small paper tables that still clutter
           most trial workflows —{" "}
           <Link href="/tools/randomization">randomization lists</Link>,{" "}
-          <Link href="/tools/timetable">schedules of assessment</Link>,
+          <Link href="/tools/timetable">schedules of assessment</Link>,{" "}
+          and <Link href="/tools/meal-log">meal intake logs</Link> —
           and more on the way.
         </p>
         <p style={{ marginBottom: "1rem" }}>
