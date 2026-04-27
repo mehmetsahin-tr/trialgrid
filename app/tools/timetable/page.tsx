@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Select from "@/app/components/Select";
 
 const STORAGE_KEY = "trialgrids_tt_v2";
 
@@ -520,9 +521,11 @@ export default function TimeTablePage() {
           {cfg.procedures.map(proc => (
             <div key={proc.id} className="tt-proc-grid" style={{ marginBottom: ".5rem" }}>
               <input type="text" value={proc.label} onChange={e => updateProc(proc.id, "label", e.target.value)} />
-              <select value={proc.dayId} onChange={e => updateProc(proc.id, "dayId", e.target.value)}>
-                {cfg.days.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
-              </select>
+              <Select
+                value={proc.dayId}
+                onChange={v => updateProc(proc.id, "dayId", v)}
+                options={cfg.days.map(d => ({ value: d.id, label: d.label }))}
+              />
               <input
                 type="text"
                 placeholder="HH:MM or 07:00-07:30"

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Select from "@/app/components/Select";
 
 const STORAGE_KEY = "trialgrids_meal_log_v2";
 const ADD_CUSTOM_VALUE = "__add_custom__";
@@ -509,17 +510,16 @@ export default function MealLogPage() {
           {/* Meal selector */}
           <div style={{ marginBottom: "1rem" }}>
             <label>Select meal</label>
-            <select
+            <Select
               value={addingCustom ? ADD_CUSTOM_VALUE : (activeMeal || "")}
-              onChange={e => handleMealSelect(e.target.value)}
+              onChange={handleMealSelect}
+              placeholder="Select meal"
+              options={[
+                ...mealKeys.map(k => ({ value: k, label: mealLabel(k) })),
+                { value: ADD_CUSTOM_VALUE, label: "+ Add custom meal..." },
+              ]}
               style={{ maxWidth: "340px" }}
-            >
-              <option value="" disabled>Select meal</option>
-              {mealKeys.map(k => (
-                <option key={k} value={k}>{mealLabel(k)}</option>
-              ))}
-              <option value={ADD_CUSTOM_VALUE}>+ Add custom meal...</option>
-            </select>
+            />
           </div>
 
           {/* Custom meal input */}
