@@ -313,7 +313,6 @@ export default function RandomizationPage() {
 
   const periodHeaders = Array.from({ length: periods }, (_, i) => `Period ${i + 1}`);
   const groupIndex = (val: string) => groups.indexOf(val);
-  const numCols = method === "parallel" ? 6 : 5;
 
   return (
     <main>
@@ -363,7 +362,7 @@ export default function RandomizationPage() {
           </div>
 
           {/* Parameter grid */}
-          <div className="controls" style={{ gridTemplateColumns: `repeat(${numCols}, 1fr)`, alignItems: "flex-start" }}>
+          <div className="controls" style={{ alignItems: "flex-start" }}>
             <div>
               <label>Total volunteers</label>
               <input

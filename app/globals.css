@@ -163,6 +163,7 @@ footer a:hover { text-decoration: underline; }
   .panel-body { padding: 1rem; }
 
   .controls { grid-template-columns: 1fr; gap: .75rem; }
+  .method-toggle { width: 100%; }
 
   .btn-row { flex-direction: column; }
   .btn { width: 100%; text-align: center; padding: .85rem 1rem; }
