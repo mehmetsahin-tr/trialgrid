@@ -59,7 +59,7 @@ main { flex: 1; min-width: 0; padding: 3rem 0 5rem 2rem; }
 /* Form controls */
 .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; align-items: end; }
 label { display: block; font-family: var(--font-jetbrains-mono), monospace; font-size: .68rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-bottom: .4rem; }
-input, select, textarea { width: 100%; padding: .6rem .75rem; border: 1px solid var(--rule); background: var(--paper); font-family: var(--font-jetbrains-mono), monospace; font-size: .85rem; color: var(--ink); }
+input, select, textarea { width: 100%; padding: .6rem .75rem; border: 1px solid var(--rule); background: var(--paper); font-family: var(--font-jetbrains-mono), monospace; font-size: .85rem; color: var(--ink); line-height: 1.4; }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 textarea { resize: vertical; min-height: 70px; }
 
@@ -115,6 +115,7 @@ footer a:hover { text-decoration: underline; }
 
 /* Method toggle (segmented control) */
 .method-toggle { display: flex; border: 1px solid var(--rule); width: fit-content; }
+.method-toggle-grid { display: grid; grid-template-columns: repeat(4, 1fr); width: 100%; }
 .method-btn { padding: .5rem 1.1rem; border: none; background: none; font-family: var(--font-jetbrains-mono), monospace; font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; cursor: pointer; color: var(--muted); transition: background .1s, color .1s; }
 .method-btn + .method-btn { border-left: 1px solid var(--rule); }
 .method-btn.active { background: var(--ink); color: var(--paper); }

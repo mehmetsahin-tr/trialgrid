@@ -51,8 +51,9 @@ export default function LandingPage() {
       <p className="lede">
         Free, browser-based clinical research tools. Generate randomization
         schedules for bioequivalence, bioavailability, and crossover studies;
-        build time tables and SPIRIT-compliant schedule of assessments; and
-        keep meal intake logs for study periods. Everything runs locally; your
+        build time tables and SPIRIT-compliant schedule of assessments; keep
+        meal intake logs for study periods; and calculate precise sample
+        shipment counts for bioanalytical labs. Everything runs locally; your
         data never leaves this device. No accounts, no uploads.
       </p>
 

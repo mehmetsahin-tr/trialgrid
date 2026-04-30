@@ -47,7 +47,8 @@ export default function AboutPage() {
           most trial workflows —{" "}
           <Link href="/tools/randomization">randomization lists</Link>,{" "}
           <Link href="/tools/timetable">schedules of assessment</Link>,{" "}
-          and <Link href="/tools/meal-log">meal intake logs</Link> —
+          <Link href="/tools/meal-log">meal intake logs</Link>,{" "}
+          and <Link href="/tools/sample-shipment">sample shipment counts</Link> —
           and more on the way.
         </p>
         <p style={{ marginBottom: "1rem" }}>

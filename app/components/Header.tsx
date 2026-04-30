@@ -13,6 +13,7 @@ const mobileTools = [
   { href: "/tools/randomization", label: "Randomization" },
   { href: "/tools/timetable", label: "Time Table" },
   { href: "/tools/meal-log", label: "Meal Log" },
+  { href: "/tools/sample-shipment", label: "Sample Shipment" },
 ];
 
 export default function Header() {
