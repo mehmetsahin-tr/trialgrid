@@ -61,9 +61,9 @@ export default function TimeTablePage() {
   const [cfg, setCfg] = useState<Config>(INITIAL);
   const [built, setBuilt] = useState(false);
   const [missingRaw, setMissingRaw] = useState("");
-  const [nRaw, setNRaw] = useState(String(INITIAL.n));
-  const [stationsRaw, setStationsRaw] = useState(String(INITIAL.stations));
-  const [intervalRaw, setIntervalRaw] = useState(String(INITIAL.interval));
+  const [nRaw, setNRaw] = useState("");
+  const [stationsRaw, setStationsRaw] = useState("");
+  const [intervalRaw, setIntervalRaw] = useState("");
 
   function save(next: Config) {
     setCfg(next);
@@ -386,6 +386,7 @@ export default function TimeTablePage() {
               <input
                 type="text"
                 inputMode="numeric"
+                placeholder="Please enter a number"
                 value={nRaw}
                 onChange={e => {
                   const raw = e.target.value.replace(/[^0-9]/g, "");
@@ -395,7 +396,7 @@ export default function TimeTablePage() {
                 }}
                 onBlur={() => {
                   const num = parseInt(nRaw);
-                  if (isNaN(num) || num < 1) setNRaw(String(cfg.n));
+                  if (!isNaN(num) && num < 1) setNRaw("");
                 }}
               />
             </div>
@@ -404,6 +405,7 @@ export default function TimeTablePage() {
               <input
                 type="text"
                 inputMode="numeric"
+                placeholder="Please enter a number"
                 value={stationsRaw}
                 onChange={e => {
                   const raw = e.target.value.replace(/[^0-9]/g, "");
@@ -413,7 +415,7 @@ export default function TimeTablePage() {
                 }}
                 onBlur={() => {
                   const num = parseInt(stationsRaw);
-                  if (isNaN(num) || num < 1) setStationsRaw(String(cfg.stations));
+                  if (!isNaN(num) && num < 1) setStationsRaw("");
                 }}
               />
             </div>
@@ -422,6 +424,7 @@ export default function TimeTablePage() {
               <input
                 type="text"
                 inputMode="numeric"
+                placeholder="Please enter a number"
                 value={intervalRaw}
                 onChange={e => {
                   const raw = e.target.value.replace(/[^0-9]/g, "");
@@ -431,7 +434,7 @@ export default function TimeTablePage() {
                 }}
                 onBlur={() => {
                   const num = parseInt(intervalRaw);
-                  if (isNaN(num) || num < 1) setIntervalRaw(String(cfg.interval));
+                  if (!isNaN(num) && num < 1) setIntervalRaw("");
                 }}
               />
             </div>
