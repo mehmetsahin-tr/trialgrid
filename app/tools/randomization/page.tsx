@@ -368,9 +368,9 @@ export default function RandomizationPage() {
               <input
                 type="text"
                 inputMode="numeric"
-                placeholder={method === "parallel" ? 'Please specify a number. E.g. "24"' : "Please specify"}
+                placeholder={method === "parallel" ? 'e.g. 24' : "e.g. 24"}
                 value={nRaw}
-                style={{ fontSize: ".72rem" }}
+                style={{ fontSize: ".63rem" }}
                 onChange={e => {
                   const raw = e.target.value.replace(/[^0-9]/g, "");
                   setNRaw(raw);

@@ -349,23 +349,33 @@ export default function TimeTablePage() {
           <div className="controls">
             <div>
               <label>Clinic Code</label>
-              <input type="text" value={cfg.info.clinicCode} onChange={e => setInfo("clinicCode", e.target.value)} />
+              <input type="text" placeholder="Please specify" value={cfg.info.clinicCode} onChange={e => setInfo("clinicCode", e.target.value)} />
             </div>
             <div>
               <label>Principal Investigator</label>
-              <input type="text" value={cfg.info.pi} onChange={e => setInfo("pi", e.target.value)} />
+              <input type="text" placeholder="Name and Surname" value={cfg.info.pi} onChange={e => setInfo("pi", e.target.value)} />
             </div>
             <div>
               <label>Protocol Code</label>
-              <input type="text" value={cfg.info.protocolCode} onChange={e => setInfo("protocolCode", e.target.value)} />
+              <input type="text" placeholder="Please specify" value={cfg.info.protocolCode} onChange={e => setInfo("protocolCode", e.target.value)} />
             </div>
             <div>
               <label>Period</label>
-              <input type="text" value={cfg.info.period} onChange={e => setInfo("period", e.target.value)} />
+              <Select
+                value={cfg.info.period}
+                onChange={v => setInfo("period", v)}
+                placeholder="Please select"
+                options={[
+                  { value: "1", label: "1" },
+                  { value: "2", label: "2" },
+                  { value: "3", label: "3" },
+                  { value: "4", label: "4" },
+                ]}
+              />
             </div>
             <div>
               <label>Prepared by</label>
-              <input type="text" value={cfg.info.createdBy} onChange={e => setInfo("createdBy", e.target.value)} />
+              <input type="text" placeholder="Name and Surname" value={cfg.info.createdBy} onChange={e => setInfo("createdBy", e.target.value)} />
             </div>
             <div>
               <label>Date</label>

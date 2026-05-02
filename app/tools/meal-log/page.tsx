@@ -403,11 +403,11 @@ export default function MealLogPage() {
           <div className="controls">
             <div>
               <label>Study Code</label>
-              <input type="text" value={state.info.studyCode} onChange={e => setInfo("studyCode", e.target.value)} />
+              <input type="text" placeholder="Please specify" value={state.info.studyCode} onChange={e => setInfo("studyCode", e.target.value)} />
             </div>
             <div>
               <label>Clinic Code</label>
-              <input type="text" value={state.info.clinicCode} onChange={e => setInfo("clinicCode", e.target.value)} />
+              <input type="text" placeholder="Please specify" value={state.info.clinicCode} onChange={e => setInfo("clinicCode", e.target.value)} />
             </div>
 
             {state.info.singleHall ? (
@@ -418,7 +418,7 @@ export default function MealLogPage() {
                 </div>
                 <div>
                   <label>Prepared by</label>
-                  <input type="text" value={state.info.preparedBy} onChange={e => setInfo("preparedBy", e.target.value)} />
+                  <input type="text" placeholder="Name and Surname" value={state.info.preparedBy} onChange={e => setInfo("preparedBy", e.target.value)} />
                 </div>
               </>
             ) : (
