@@ -93,6 +93,8 @@ export default function RootLayout({
             <Link href="/tools/meal-log">Meal Log</Link>
             <span className="footer-sep">·</span>
             <Link href="/tools/sample-shipment">Sample Shipment</Link>
+            <span className="footer-sep">·</span>
+            <Link href="/tools/tube-labels">Tube Labels</Link>
           </div>
           <div className="footer-legal">
             © 2026 Trialgrids ·{" "}

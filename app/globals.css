@@ -226,3 +226,7 @@ footer {
     font-size: 0.68rem;
   }
 }
+
+/* Timepoints grid: 2 columns desktop, 1 column mobile */
+.tp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+@media (max-width: 768px) { .tp-grid { grid-template-columns: 1fr; } }

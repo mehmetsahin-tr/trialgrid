@@ -52,8 +52,9 @@ export default function LandingPage() {
         Free, browser-based clinical research tools. Generate randomization
         schedules for bioequivalence, bioavailability, and crossover studies;
         build time tables and SPIRIT-compliant schedule of assessments; keep
-        meal intake logs for study periods; and calculate precise sample
-        shipment counts for bioanalytical labs. Everything runs locally; your
+        meal intake logs for study periods; calculate precise sample
+        shipment counts for bioanalytical labs; and generate printable tube
+        labels for Tanex TW-2052 sheets. Everything runs locally; your
         data never leaves this device. No accounts, no uploads.
       </p>
 

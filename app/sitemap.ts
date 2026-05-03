@@ -8,6 +8,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: "https://trialgrids.com/tools/timetable", lastModified, changeFrequency: "monthly", priority: 0.9 },
     { url: "https://trialgrids.com/tools/meal-log", lastModified, changeFrequency: "monthly", priority: 0.9 },
     { url: "https://trialgrids.com/tools/sample-shipment", lastModified, changeFrequency: "monthly", priority: 0.9 },
+    { url: "https://trialgrids.com/tools/tube-labels", lastModified, changeFrequency: "monthly", priority: 0.9 },
     { url: "https://trialgrids.com/about", lastModified, changeFrequency: "monthly", priority: 0.7 },
     { url: "https://trialgrids.com/contact", lastModified, changeFrequency: "yearly", priority: 0.5 },
     { url: "https://trialgrids.com/privacy", lastModified, changeFrequency: "yearly", priority: 0.3 },

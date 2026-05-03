@@ -14,6 +14,7 @@ const mobileTools = [
   { href: "/tools/timetable", label: "Time Table" },
   { href: "/tools/meal-log", label: "Meal Log" },
   { href: "/tools/sample-shipment", label: "Sample Shipment" },
+  { href: "/tools/tube-labels", label: "Tube Labels" },
 ];
 
 export default function Header() {

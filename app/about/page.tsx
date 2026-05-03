@@ -48,7 +48,8 @@ export default function AboutPage() {
           <Link href="/tools/randomization">randomization lists</Link>,{" "}
           <Link href="/tools/timetable">schedules of assessment</Link>,{" "}
           <Link href="/tools/meal-log">meal intake logs</Link>,{" "}
-          and <Link href="/tools/sample-shipment">sample shipment counts</Link> —
+          <Link href="/tools/sample-shipment">sample shipment counts</Link>,{" "}
+          and <Link href="/tools/tube-labels">tube labels</Link> —
           and more on the way.
         </p>
         <p style={{ marginBottom: "1rem" }}>
