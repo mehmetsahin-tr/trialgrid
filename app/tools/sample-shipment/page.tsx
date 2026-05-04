@@ -583,7 +583,7 @@ export default function SampleShipmentPage() {
               <input
                 type="text"
                 inputMode="numeric"
-                placeholder="024"
+                placeholder="Numbers only"
                 value={totalSubjectsRaw}
                 onChange={(e) => setTotalSubjectsRaw(e.target.value.replace(/[^0-9]/g, ""))}
               />
@@ -593,7 +593,7 @@ export default function SampleShipmentPage() {
               <input
                 type="text"
                 inputMode="numeric"
-                placeholder="17"
+                placeholder="Numbers only"
                 value={timepointsRaw}
                 onChange={(e) => setTimepointsRaw(e.target.value.replace(/[^0-9]/g, ""))}
               />
@@ -625,7 +625,7 @@ export default function SampleShipmentPage() {
               <label>Study code</label>
               <input
                 type="text"
-                placeholder="BE2026-042"
+                placeholder="Please specify"
                 value={studyCode}
                 onChange={(e) => setStudyCode(e.target.value)}
               />
@@ -669,7 +669,7 @@ export default function SampleShipmentPage() {
               <input
                 type="text"
                 inputMode="numeric"
-                placeholder="017"
+                placeholder="e.g. 017"
                 value={dropOutPending.subjectId}
                 onChange={(e) =>
                   setDropOutPending((p) => ({
@@ -695,7 +695,7 @@ export default function SampleShipmentPage() {
               <input
                 type="text"
                 inputMode="numeric"
-                placeholder="4"
+                placeholder="e.g. 4"
                 value={dropOutPending.lastTimepoint}
                 onChange={(e) =>
                   setDropOutPending((p) => ({
@@ -744,7 +744,7 @@ export default function SampleShipmentPage() {
               <input
                 type="text"
                 inputMode="numeric"
-                placeholder="012"
+                placeholder="e.g. 012"
                 value={noShowPending.subjectId}
                 onChange={(e) =>
                   setNoShowPending({ subjectId: e.target.value.replace(/[^0-9]/g, "") })
@@ -795,7 +795,7 @@ export default function SampleShipmentPage() {
               <input
                 type="text"
                 inputMode="numeric"
-                placeholder="003"
+                placeholder="e.g. 003"
                 value={lostPending.subjectId}
                 onChange={(e) =>
                   setLostPending((p) => ({
@@ -821,7 +821,7 @@ export default function SampleShipmentPage() {
               <input
                 type="text"
                 inputMode="numeric"
-                placeholder="7"
+                placeholder="e.g. 7"
                 value={lostPending.timepoint}
                 onChange={(e) =>
                   setLostPending((p) => ({
@@ -848,7 +848,7 @@ export default function SampleShipmentPage() {
               <label>Reason (optional)</label>
               <input
                 type="text"
-                placeholder="tube broken"
+                placeholder="e.g. tube broken"
                 value={lostPending.reason}
                 onChange={(e) => setLostPending((p) => ({ ...p, reason: e.target.value }))}
               />

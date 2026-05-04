@@ -667,7 +667,7 @@ export default function TubeLabelsPage() {
               <input
                 type="text"
                 inputMode="numeric"
-                placeholder="Numbers only — Please specify"
+                placeholder="Numbers only"
                 value={subjectsRaw}
                 onChange={(e) => setSubjectsRaw(e.target.value.replace(/[^0-9]/g, ""))}
               />
@@ -694,7 +694,7 @@ export default function TubeLabelsPage() {
               <input
                 type="text"
                 inputMode="numeric"
-                placeholder="Numbers only — Please specify"
+                placeholder="Numbers only"
                 value={timepointsPerPeriodRaw}
                 onChange={(e) => handleTppChange(e.target.value.replace(/[^0-9]/g, ""))}
               />
