@@ -286,7 +286,7 @@ function generateBloodTubeSection(p: BuildParams): LabelItem[] {
   for (let period = 1; period <= p.periods; period++) {
     for (let pointIndex = 1; pointIndex <= p.timepointsPerPeriod; pointIndex++) {
       const time = p.timepoints[pointIndex - 1]?.time ?? "";
-      const copies = pointIndex === 1 && p.duplicateTime0 ? 2 : 1;
+      const copies = pointIndex === 1 && period === 1 && p.duplicateTime0 ? 2 : 1;
 
       for (let subject = 1; subject <= p.subjects; subject++) {
         for (let c = 0; c < copies; c++) {
@@ -307,29 +307,22 @@ function generateBloodTubeSection(p: BuildParams): LabelItem[] {
   return items;
 }
 
-function generatePlasmaAliquotSection(p: BuildParams, aliquot: Aliquot): LabelItem[] {
+function generatePlasmaPeriodAliquot(p: BuildParams, period: number, aliquot: Aliquot): LabelItem[] {
   const items: LabelItem[] = [];
   const itemType: LabelItem["type"] = aliquot === "master" ? "tube-plasma-master" : "tube-plasma-backup";
   const sepContext: "plasma-master" | "plasma-backup" = aliquot === "master" ? "plasma-master" : "plasma-backup";
-  for (let period = 1; period <= p.periods; period++) {
-    for (let pointIndex = 1; pointIndex <= p.timepointsPerPeriod; pointIndex++) {
-      const time = p.timepoints[pointIndex - 1]?.time ?? "";
-      const copies = pointIndex === 1 && p.duplicateTime0 ? 2 : 1;
+  for (let pointIndex = 1; pointIndex <= p.timepointsPerPeriod; pointIndex++) {
+    const time = p.timepoints[pointIndex - 1]?.time ?? "";
+    const copies = pointIndex === 1 && period === 1 && p.duplicateTime0 ? 2 : 1;
 
-      for (let subject = 1; subject <= p.subjects; subject++) {
-        for (let c = 0; c < copies; c++) {
-          items.push({ type: itemType, subject, period, pointIndex, time } as LabelItem);
-        }
+    for (let subject = 1; subject <= p.subjects; subject++) {
+      for (let c = 0; c < copies; c++) {
+        items.push({ type: itemType, subject, period, pointIndex, time } as LabelItem);
       }
+    }
 
-      const isLastPoint = pointIndex === p.timepointsPerPeriod;
-      const isLastPeriod = period === p.periods;
-
-      if (isLastPoint && !isLastPeriod) {
-        items.push({ type: "separator-period", fromPeriod: period, toPeriod: period + 1 });
-      } else if (!isLastPoint) {
-        items.push({ type: "separator-point", fromPoint: pointIndex, toPoint: pointIndex + 1, context: sepContext });
-      }
+    if (pointIndex < p.timepointsPerPeriod) {
+      items.push({ type: "separator-point", fromPoint: pointIndex, toPoint: pointIndex + 1, context: sepContext });
     }
   }
   return items;
@@ -347,14 +340,16 @@ function generateAllItems(p: BuildParams): LabelItem[] {
   // Plasma section starts with a section transition separator
   items.push({ type: "separator-section", fromSection: "blood", toSection: "plasma-master" });
 
-  // Section 2a: Master plasma
-  items.push(...generatePlasmaAliquotSection(p, "master"));
+  // Section 2: Plasma, grouped by period (master → backup within each period)
+  for (let period = 1; period <= p.periods; period++) {
+    items.push(...generatePlasmaPeriodAliquot(p, period, "master"));
+    items.push({ type: "separator-aliquot", fromAliquot: "master", toAliquot: "backup" });
+    items.push(...generatePlasmaPeriodAliquot(p, period, "backup"));
 
-  // Aliquot transition separator
-  items.push({ type: "separator-aliquot", fromAliquot: "master", toAliquot: "backup" });
-
-  // Section 2b: Backup plasma
-  items.push(...generatePlasmaAliquotSection(p, "backup"));
+    if (period < p.periods) {
+      items.push({ type: "separator-period", fromPeriod: period, toPeriod: period + 1 });
+    }
+  }
 
   return items;
 }
@@ -458,7 +453,7 @@ export default function TubeLabelsPage() {
       : 0;
   const baseValid = vs > 0 && vp > 0 && vt > 0;
 
-  const dupExtraPerVariant = duplicateTime0 && baseValid ? vs * vp : 0;
+  const dupExtraPerVariant = duplicateTime0 && baseValid ? vs : 0;
 
   const bloodLabels = baseValid ? vs * vt * vp + dupExtraPerVariant : 0;
   const plasmaMasterLabels = baseValid ? vs * vt * vp + dupExtraPerVariant : 0;
@@ -468,10 +463,14 @@ export default function TubeLabelsPage() {
   const withinPeriodSeps = baseValid ? (vt - 1) * vp : 0;
   const periodTransitionSeps = baseValid && vp > 1 ? vp - 1 : 0;
   const bloodSeps = withinPeriodSeps + periodTransitionSeps;
-  const plasmaPerAliquotSeps = withinPeriodSeps + periodTransitionSeps;
-  const aliquotTransitionSep = baseValid ? 1 : 0;
+  // Plasma: each period contains [master block] + aliquot-sep + [backup block].
+  // Within each block there are (vt - 1) point separators, so per period: 2*(vt-1) + 1.
+  // Between consecutive periods there is one period-separator (vp - 1 total).
+  const plasmaWithinPeriodSeps = baseValid ? (vt - 1) * vp * 2 : 0;
+  const plasmaAliquotSeps = baseValid ? vp : 0;
+  const plasmaPeriodSeps = periodTransitionSeps;
   const sectionTransitionSep = baseValid ? 1 : 0;
-  const plasmaSeps = plasmaPerAliquotSeps * 2 + aliquotTransitionSep;
+  const plasmaSeps = plasmaWithinPeriodSeps + plasmaAliquotSeps + plasmaPeriodSeps;
   const totalSeps = bloodSeps + plasmaSeps + sectionTransitionSep;
 
   const bloodSectionTotal = bloodLabels + bloodSeps;
@@ -742,7 +741,7 @@ export default function TubeLabelsPage() {
               onChange={(e) => setDuplicateTime0(e.target.checked)}
               style={{ width: "auto", cursor: "pointer", accentColor: "var(--ink)" }}
             />
-            Duplicate Time 0 samples (validation)
+            Duplicate Time 0 samples (Period 1, validation)
           </label>
         </div>
       </div>
@@ -878,10 +877,10 @@ export default function TubeLabelsPage() {
                   <td />
                 </tr>
                 <tr>
-                  <td>Separators (per aliquot + aliquot transition + section transition)</td>
+                  <td>Separators (within-period + aliquot transition + period transition + section transition)</td>
                   <td>
                     {plasmaSectionTotal > 0
-                      ? plasmaPerAliquotSeps * 2 + aliquotTransitionSep + sectionTransitionSep
+                      ? plasmaSeps + sectionTransitionSep
                       : "—"}
                   </td>
                 </tr>
