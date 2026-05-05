@@ -67,7 +67,7 @@ export default function AboutPage() {
         </p>
         <p>
           <strong className="serif">Coming soon.</strong> Sample size calculator
-          · CRF builder · Adverse event log · PDF export.
+          · CRF builder.
         </p>
       </div>
     </main>

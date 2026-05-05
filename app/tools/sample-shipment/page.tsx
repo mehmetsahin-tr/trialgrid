@@ -551,7 +551,7 @@ export default function SampleShipmentPage() {
       {/* Hero */}
       <div className="hero">
         <div>
-          <p className="eyebrow">TOOL 04 · BIOANALYTICAL · SAMPLE-SHIPMENT</p>
+          <p className="eyebrow">HANDING OVER CALCULATOR · BIOANALYTICAL · SAMPLE-SHIPMENT</p>
           <h1>
             Sample Shipment <em>Calculator.</em>
           </h1>

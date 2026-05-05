@@ -616,7 +616,7 @@ export default function TubeLabelsPage() {
       {/* Hero */}
       <div className="hero">
         <div>
-          <p className="eyebrow">TOOL 05 · BIOANALYTICAL · TUBE-LABELS</p>
+          <p className="eyebrow">BE/BA · BIOANALYTICAL · TUBE-LABELS</p>
           <h1>
             Tube Label <em>Generator.</em>
           </h1>
