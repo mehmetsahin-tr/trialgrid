@@ -224,6 +224,22 @@ footer {
   }
   .footer-tools {
     font-size: 0.68rem;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 640px) {
+  .footer-tools {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .footer-tools .footer-sep {
+    display: none;
+  }
+  .footer-legal {
+    font-size: 0.65rem;
+    padding: 0 1rem;
   }
 }
 
