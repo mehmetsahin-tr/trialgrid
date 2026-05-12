@@ -53,9 +53,10 @@ export default function LandingPage() {
         schedules for bioequivalence, bioavailability, and crossover studies;
         build time tables and SPIRIT-compliant schedule of assessments; keep
         meal intake logs for study periods; calculate precise sample
-        shipment counts for bioanalytical labs; and generate printable tube
-        labels for Tanex TW-2052 sheets. Everything runs locally; your
-        data never leaves this device. No accounts, no uploads.
+        shipment counts for bioanalytical labs; generate printable tube
+        labels for Tanex TW-2052 sheets; and produce printable adverse event
+        forms at the bedside. Everything runs locally; your data never leaves
+        this device. No accounts, no uploads.
       </p>
 
       <div

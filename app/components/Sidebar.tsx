@@ -9,6 +9,7 @@ const tools = [
   { href: "/tools/meal-log", label: "Meal Log" },
   { href: "/tools/sample-shipment", label: "Sample Shipment" },
   { href: "/tools/tube-labels", label: "Tube Labels" },
+  { href: "/tools/adverse-event", label: "Adverse Event" },
 ];
 
 export default function Sidebar() {

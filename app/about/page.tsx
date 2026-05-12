@@ -96,7 +96,7 @@ export default function AboutPage() {
 
         <h2 style={{ marginTop: "2rem", marginBottom: "1rem" }}>The toolkit</h2>
         <p style={{ marginBottom: "1rem" }}>
-          Five tools live today, each targeting a specific friction point:
+          Six tools live today, each targeting a specific friction point:
         </p>
         <ul style={{ marginBottom: "2rem", paddingLeft: "1.5rem" }}>
           <li style={{ marginBottom: "0.8rem" }}>
@@ -131,6 +131,9 @@ export default function AboutPage() {
             labels with no waste between timepoints, and inserts point-transition
             separator labels for personnel guidance. Replaces 4-6 hours of
             manual Word work in seconds.
+          </li>
+          <li style={{ marginBottom: "0.8rem" }}>
+            <Link href="/tools/adverse-event"><strong>Adverse Event Form</strong></Link> — Generate printable AE forms for clinical documentation. Fill in the volunteer&apos;s details at the bedside on phone or tablet, export a clean PDF, print, sign, and attach to the CRF. Replaces 5-10 minutes of manual paper form-filling per event.
           </li>
         </ul>
         <p style={{ marginBottom: "2rem" }}>

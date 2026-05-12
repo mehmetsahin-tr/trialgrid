@@ -95,6 +95,8 @@ export default function RootLayout({
             <Link href="/tools/sample-shipment">Sample Shipment</Link>
             <span className="footer-sep">·</span>
             <Link href="/tools/tube-labels">Tube Labels</Link>
+            <span className="footer-sep">·</span>
+            <Link href="/tools/adverse-event">Adverse Event</Link>
           </div>
           <div className="footer-legal">
             © 2026 Trialgrids ·{" "}

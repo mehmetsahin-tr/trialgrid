@@ -61,6 +61,46 @@ main { flex: 1; min-width: 0; padding: 3rem 0 5rem 2rem; }
 label { display: block; font-family: var(--font-jetbrains-mono), monospace; font-size: .68rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-bottom: .4rem; }
 input, select, textarea { width: 100%; padding: .6rem .75rem; border: 1px solid var(--rule); background: var(--paper); font-family: var(--font-jetbrains-mono), monospace; font-size: .85rem; color: var(--ink); line-height: 1.4; }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+input[type="radio"], input[type="checkbox"] { width: auto; padding: 0; border: none; background: none; height: auto; line-height: normal; }
+
+/* Adverse-event option tooltip (custom hover bubble) */
+.ae-tip-wrap .ae-tip-bubble {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: var(--paper);
+  padding: .4rem .65rem;
+  font-family: var(--font-jetbrains-mono), monospace;
+  font-size: .68rem;
+  font-weight: 400;
+  letter-spacing: .03em;
+  line-height: 1.4;
+  max-width: 220px;
+  white-space: normal;
+  text-align: center;
+  border-radius: 3px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .35);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .12s ease, transform .12s ease;
+  z-index: 60;
+}
+.ae-tip-wrap .ae-tip-bubble::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--ink);
+}
+.ae-tip-wrap:hover .ae-tip-bubble,
+.ae-tip-wrap:focus-within .ae-tip-bubble {
+  opacity: 1;
+  transform: translateX(-50%) translateY(-2px);
+}
 textarea { resize: vertical; min-height: 70px; }
 
 /* Buttons */
