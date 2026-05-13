@@ -816,7 +816,10 @@ export default function AdverseEventPage() {
     <main>
       {/* Hero */}
       <div className="hero">
-        <h1>Adverse event form.</h1>
+        <div>
+          <p className="eyebrow">ADVERSE EVENT · AE FORM · ICH E2A ALIGNED</p>
+          <h1>Adverse event form.</h1>
+        </div>
         <div className="meta">
           fill at the bedside
           <br />
