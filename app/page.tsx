@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import ShareButton from "./components/ShareButton";
+import CelebrationBanner from "./components/CelebrationBanner";
 
 export const metadata: Metadata = {
   title: "Trialgrids — Clinical Research Tools: Randomization & Time Table Generator",
@@ -37,6 +38,7 @@ export const metadata: Metadata = {
 export default function LandingPage() {
   return (
     <main>
+      <CelebrationBanner />
       <div className="hero">
         <h1>
           Clinical research tables, <em>digitized.</em>
