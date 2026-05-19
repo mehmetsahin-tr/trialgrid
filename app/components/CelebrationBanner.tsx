@@ -96,9 +96,9 @@ export default function CelebrationBanner() {
           lineHeight: 1.2,
         }}
       >
-        Bugün, klinik araştırmaya emek veren herkese
+        To everyone who carries clinical research forward —
         {" "}
-        <em style={{ color: "var(--accent)", fontStyle: "italic" }}>teşekkürler.</em>
+        <em style={{ color: "var(--accent)", fontStyle: "italic" }}>thank you.</em>
       </h2>
 
       <p
@@ -109,11 +109,12 @@ export default function CelebrationBanner() {
           maxWidth: "62ch",
         }}
       >
-        20 Mayıs 1747'de James Lind ilk kontrollü klinik denemeyi başlattı —
-        ve o günden bu yana sayısız araştırmacı, koordinatör, hemşire,
-        eczacı, hekim ve gönüllü, daha güvenli ve etkili tedavilerin yolunu
-        açtı. Trialgrids olarak, her gün bu işin görünmeyen yükünü taşıyan
-        ekiplere saygı ve teşekkürlerimizi sunuyoruz.
+        On May 20, 1747, James Lind began the first controlled clinical
+        trial. Nearly three centuries later, countless researchers,
+        coordinators, nurses, pharmacists, physicians, and volunteers
+        still do the quiet, careful work that turns molecules into safer,
+        better treatments. From Trialgrids, with respect and gratitude to
+        everyone who shows up for the patient who isn&apos;t in the room yet.
       </p>
     </div>
   );
