@@ -46,15 +46,15 @@ export default function LanguageToggle({ onChange }: Props) {
         padding: "2px",
         fontFamily: "var(--font-inter, system-ui)",
         fontSize: "0.75rem",
-        zIndex: 10,
+        zIndex: 1,
       }}
     >
       <button
         onClick={() => handleChange("en")}
         style={{
           padding: "4px 14px",
-          background: lang === "en" ? "var(--ink, #16140f)" : "transparent",
-          color: lang === "en" ? "var(--paper, #e8e4d8)" : "var(--muted, #7a7868)",
+          background: lang === "en" ? "#d97757" : "transparent",
+          color: lang === "en" ? "#ffffff" : "var(--muted, #7a7868)",
           border: "none",
           borderRadius: "3px",
           cursor: "pointer",
@@ -69,8 +69,8 @@ export default function LanguageToggle({ onChange }: Props) {
         onClick={() => handleChange("tr")}
         style={{
           padding: "4px 14px",
-          background: lang === "tr" ? "var(--ink, #16140f)" : "transparent",
-          color: lang === "tr" ? "var(--paper, #e8e4d8)" : "var(--muted, #7a7868)",
+          background: lang === "tr" ? "#d97757" : "transparent",
+          color: lang === "tr" ? "#ffffff" : "var(--muted, #7a7868)",
           border: "none",
           borderRadius: "3px",
           cursor: "pointer",

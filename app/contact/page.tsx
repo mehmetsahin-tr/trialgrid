@@ -55,7 +55,16 @@ function ContactEN() {
           </div>
           <a
             href="mailto:info@trialgrids.com"
-            style={{ fontSize: ".85rem", color: "var(--accent-2)", fontFamily: "var(--font-jetbrains-mono)", textDecoration: "none" }}
+            style={{
+              fontSize: ".85rem",
+              fontFamily: "var(--font-jetbrains-mono)",
+              textDecoration: "none",
+              backgroundImage: "linear-gradient(90deg, #d97757 0%, #7c3aed 100%)",
+              WebkitBackgroundClip: "text",
+              backgroundClip: "text",
+              color: "transparent",
+              WebkitTextFillColor: "transparent",
+            }}
           >
             info@trialgrids.com
           </a>
@@ -132,11 +141,20 @@ function ContactTR() {
           }}
         >
           <div className="mono" style={{ marginBottom: ".5rem", color: "var(--accent)" }}>
-            Doğrudan iletişim
+            DOĞRUDAN İLETİŞİM
           </div>
           <a
             href="mailto:info@trialgrids.com"
-            style={{ fontSize: ".85rem", color: "var(--accent-2)", fontFamily: "var(--font-jetbrains-mono)", textDecoration: "none" }}
+            style={{
+              fontSize: ".85rem",
+              fontFamily: "var(--font-jetbrains-mono)",
+              textDecoration: "none",
+              backgroundImage: "linear-gradient(90deg, #d97757 0%, #7c3aed 100%)",
+              WebkitBackgroundClip: "text",
+              backgroundClip: "text",
+              color: "transparent",
+              WebkitTextFillColor: "transparent",
+            }}
           >
             info@trialgrids.com
           </a>

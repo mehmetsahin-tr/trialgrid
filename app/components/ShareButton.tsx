@@ -42,7 +42,7 @@ export default function ShareButton() {
         alignItems: "center",
         gap: ".4rem",
         background: "none",
-        border: "1px solid var(--rule)",
+        border: "2px solid var(--rule)",
         color: "var(--muted)",
         fontFamily: "var(--font-jetbrains-mono)",
         fontSize: ".72rem",
@@ -53,12 +53,15 @@ export default function ShareButton() {
         transition: "border-color .15s, color .15s",
       }}
       onMouseEnter={e => {
-        (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--ink)";
-        (e.currentTarget as HTMLButtonElement).style.color = "var(--ink)";
+        const el = e.currentTarget as HTMLButtonElement;
+        el.style.borderImage = "linear-gradient(to right, #7c3aed 50%, #d97757 50%) 1";
+        el.style.color = "var(--ink)";
       }}
       onMouseLeave={e => {
-        (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--rule)";
-        (e.currentTarget as HTMLButtonElement).style.color = "var(--muted)";
+        const el = e.currentTarget as HTMLButtonElement;
+        el.style.borderImage = "";
+        el.style.borderColor = "var(--rule)";
+        el.style.color = "var(--muted)";
       }}
     >
       <svg
