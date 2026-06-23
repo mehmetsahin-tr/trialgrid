@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 
 export interface SelectOption {
   value: string;
@@ -19,23 +20,47 @@ interface SelectProps {
 
 export default function Select({ value, onChange, options, placeholder, style, className }: SelectProps) {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [rect, setRect] = useState<{ left: number; top: number; width: number } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLUListElement>(null);
 
-  useEffect(() => {
-    function onOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onOutside);
-    return () => document.removeEventListener("mousedown", onOutside);
+  useEffect(() => setMounted(true), []);
+
+  const updateRect = useCallback(() => {
+    const el = triggerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setRect({ left: r.left, top: r.bottom, width: r.width });
   }, []);
 
   useEffect(() => {
+    if (!open) return;
+    updateRect();
+    function onOutside(e: MouseEvent) {
+      const t = e.target as Node;
+      if (ref.current?.contains(t)) return;
+      if (menuRef.current?.contains(t)) return;
+      setOpen(false);
+    }
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
     }
+    function onReposition() {
+      updateRect();
+    }
+    document.addEventListener("mousedown", onOutside);
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, []);
+    window.addEventListener("scroll", onReposition, true);
+    window.addEventListener("resize", onReposition);
+    return () => {
+      document.removeEventListener("mousedown", onOutside);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onReposition, true);
+      window.removeEventListener("resize", onReposition);
+    };
+  }, [open, updateRect]);
 
   const strVal = String(value);
   const selected = options.find(o => o.value === strVal && strVal !== "");
@@ -44,6 +69,7 @@ export default function Select({ value, onChange, options, placeholder, style, c
   return (
     <div className={`custom-select${className ? ` ${className}` : ""}`} ref={ref} style={style}>
       <button
+        ref={triggerRef}
         type="button"
         className={`custom-select-trigger${open ? " open" : ""}${isPlaceholder ? " placeholder" : ""}`}
         onClick={() => setOpen(v => !v)}
@@ -51,8 +77,13 @@ export default function Select({ value, onChange, options, placeholder, style, c
         <span>{isPlaceholder ? placeholder : selected?.label}</span>
         <span className="custom-select-arrow">▾</span>
       </button>
-      {open && (
-        <ul className="custom-select-menu" role="listbox">
+      {open && mounted && rect && createPortal(
+        <ul
+          ref={menuRef}
+          className="custom-select-menu"
+          role="listbox"
+          style={{ left: rect.left, top: rect.top, width: rect.width }}
+        >
           {options.map(opt => (
             <li
               key={opt.value}
@@ -66,7 +97,8 @@ export default function Select({ value, onChange, options, placeholder, style, c
               {opt.label}
             </li>
           ))}
-        </ul>
+        </ul>,
+        document.body
       )}
     </div>
   );

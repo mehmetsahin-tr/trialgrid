@@ -154,7 +154,7 @@ footer a:hover { text-decoration: underline; }
 .custom-select-trigger.placeholder { color: var(--muted); font-size: .72rem; }
 .custom-select-trigger:focus, .custom-select-trigger.open { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .custom-select-arrow { font-size: .65rem; color: var(--muted); flex-shrink: 0; margin-left: .4rem; }
-.custom-select-menu { position: absolute; top: 100%; left: 0; right: 0; background: var(--paper-2); border: 1px solid var(--rule); border-top: none; z-index: 200; list-style: none; max-height: 220px; overflow-y: auto; border-radius: var(--radius-sm); box-shadow: 0 8px 24px rgba(0, 0, 0, .08); }
+.custom-select-menu { position: fixed; background: var(--paper-2); border: 1px solid var(--rule); z-index: 1000; list-style: none; max-height: 220px; overflow-y: auto; border-radius: var(--radius-sm); box-shadow: 0 8px 24px rgba(0, 0, 0, .08); margin-top: -1px; }
 .custom-select-option { padding: .55rem .75rem; font-family: var(--font-jetbrains-mono), monospace; font-size: .82rem; color: var(--ink); cursor: pointer; }
 .custom-select-option:hover:not(.disabled) { background: var(--rule); color: var(--ink); }
 .custom-select-option.selected { background: var(--accent-soft); color: var(--accent); }
