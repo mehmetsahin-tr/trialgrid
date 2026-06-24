@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import ShareButton from "./components/ShareButton";
 import CelebrationBanner from "./components/CelebrationBanner";
+import PixelGrid from "./components/PixelGrid";
 
 export const metadata: Metadata = {
   title: "Trialgrids — Clinical Research Tools: Randomization & Time Table Generator",
@@ -50,16 +51,19 @@ export default function LandingPage() {
         </div>
       </div>
 
-      <p className="lede">
-        Free, browser-based clinical research tools. Generate randomization
-        schedules for bioequivalence, bioavailability, and crossover studies;
-        build time tables and SPIRIT-compliant schedule of assessments; keep
-        meal intake logs for study periods; calculate precise sample
-        shipment counts for bioanalytical labs; generate printable tube
-        labels for Tanex TW-2052 sheets; and produce printable adverse event
-        forms at the bedside. Everything runs locally; your data never leaves
-        this device. No accounts, no uploads.
-      </p>
+      <div className="lede-row">
+        <p className="lede">
+          Free, browser-based clinical research tools. Generate randomization
+          schedules for bioequivalence, bioavailability, and crossover studies;
+          build time tables and SPIRIT-compliant schedule of assessments; keep
+          meal intake logs for study periods; calculate precise sample
+          shipment counts for bioanalytical labs; generate printable tube
+          labels for Tanex TW-2052 sheets; and produce printable adverse event
+          forms at the bedside. Everything runs locally; your data never leaves
+          this device. No accounts, no uploads.
+        </p>
+        <PixelGrid />
+      </div>
 
       <div
         style={{
