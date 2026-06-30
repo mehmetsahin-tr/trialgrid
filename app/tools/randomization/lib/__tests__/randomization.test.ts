@@ -8,6 +8,8 @@ import { mulberry32, RNG_ALGO, RNG_VERSION } from "../rng.ts";
 import { generateSchedule } from "../generate.ts";
 import { DESIGNS } from "../designs.ts";
 import { canonicalString, sha256Hex, verificationCode } from "../hash.ts";
+import { buildXlsx } from "../xlsx.ts";
+import { toCSV } from "../export.ts";
 
 test("RNG metadata is pinned", () => {
   assert.equal(RNG_ALGO, "mulberry32");
@@ -47,7 +49,46 @@ test("2x2x2 schedule is reproducible (known answer + verification code)", async 
     allocation: "balanced",
   };
   const code = verificationCode(await sha256Hex(canonicalString(meta, res.rows)));
-  assert.equal(code, "58E80E40CC6B645E");
+  assert.equal(code, "2B047F72E1B301D1");
+});
+
+test("reserve subjects are balanced and labelled separately", () => {
+  const res = generateSchedule({
+    method: "crossover",
+    designId: "partial-replicate",
+    drugs: ["T", "R"],
+    n: 12,
+    blockSize: 6,
+    seed: 7,
+    reserve: 6,
+  });
+  assert.ok(res.ok);
+  assert.deepEqual(res.reserveRows.map((r) => r.subjectId), ["R01", "R02", "R03", "R04", "R05", "R06"]);
+  const counts: Record<string, number> = {};
+  for (const r of res.reserveRows) counts[r.sequenceLabel] = (counts[r.sequenceLabel] ?? 0) + 1;
+  assert.deepEqual(counts, { TRR: 2, RTR: 2, RRT: 2 });
+});
+
+test("numbering scheme applies prefix, start and pad", () => {
+  const res = generateSchedule({
+    method: "crossover",
+    designId: "2x2x2",
+    drugs: ["T", "R"],
+    n: 4,
+    blockSize: 4,
+    seed: 1,
+    randPrefix: "IST-",
+    randStart: 101,
+    randPad: 4,
+    enrollEnabled: true,
+    enrollPrefix: "SCR-",
+    enrollStart: 1,
+    enrollPad: 3,
+  });
+  assert.ok(res.ok);
+  assert.equal(res.rows[0].subjectId, "IST-0101");
+  assert.equal(res.rows[1].subjectId, "IST-0102");
+  assert.equal(res.rows[0].enrollNo, "SCR-001");
 });
 
 test("same params on a fresh call produce an identical hash", async () => {
@@ -148,6 +189,28 @@ test("unbalanced n is rejected with a suggestion", () => {
   });
   assert.ok(!res.ok);
   assert.equal(res.error.suggestion, 10); // nearest multiple of 2 to 9
+});
+
+test("buildXlsx produces a valid ZIP container with sheet parts", () => {
+  const bytes = buildXlsx([{ name: "Schedule", rows: [["ID", "Seq"], ["001", "TR"]] }]);
+  // ZIP local-file-header magic "PK\x03\x04"
+  assert.equal(bytes[0], 0x50);
+  assert.equal(bytes[1], 0x4b);
+  assert.equal(bytes[2], 0x03);
+  assert.equal(bytes[3], 0x04);
+  const text = Buffer.from(bytes).toString("latin1");
+  assert.ok(text.includes("[Content_Types].xml"));
+  assert.ok(text.includes("xl/worksheets/sheet1.xml"));
+  // EOCD magic "PK\x05\x06"
+  assert.ok(text.includes("PK\x05\x06"));
+});
+
+test("toCSV escapes commas, quotes and newlines", () => {
+  const csv = toCSV([
+    ["a", "b,c", 'd"e'],
+    ["line1\nline2", 1, "x"],
+  ]);
+  assert.equal(csv, 'a,"b,c","d""e"\r\n"line1\nline2",1,x');
 });
 
 test("wrong treatment count for a design is rejected", () => {

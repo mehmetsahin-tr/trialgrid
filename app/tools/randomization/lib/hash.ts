@@ -36,7 +36,10 @@ export function canonicalString(meta: AuditMeta, rows: GenRow[]): string {
     `alloc=${meta.allocation}`,
   ].join("|");
   const body = rows
-    .map((row) => `${row.subjectId}:${row.sequenceLabel}:${row.treatments.join("")}`)
+    .map(
+      (row) =>
+        `${row.isReserve ? "R" : "M"}:${row.subjectId}:${row.enrollNo ?? ""}:${row.sequenceLabel}:${row.treatments.join("")}`
+    )
     .join("\n");
   return `${header}\n${body}\n`;
 }

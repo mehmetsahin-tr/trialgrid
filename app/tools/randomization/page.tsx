@@ -13,13 +13,23 @@ import type { AuditMeta } from "./lib/hash";
 import { TOOL_VERSION, TOOL_NAME } from "./lib/meta";
 import { tr } from "./lib/strings";
 import type { Lang } from "./lib/strings";
+import { buildXlsx } from "./lib/xlsx";
+import type { Cell } from "./lib/xlsx";
+import { toCSV, download } from "./lib/export";
 
-// Colors indexed by group/treatment position — works for any drug name.
 const GROUP_COLORS_CSS = ["#5b8dc4", "#c85a40", "#5a7a3a", "#8a5a2b"];
 const GROUP_COLORS_PDF = [[91, 141, 196], [200, 90, 64], [90, 122, 58], [138, 90, 43]] as [number, number, number][];
 
-// Designs that treat the drugs as Test (T) / Reference (R) — order matters.
 const TR_DESIGNS: DesignId[] = ["partial-replicate", "full-replicate-2seq", "full-replicate-4seq"];
+
+interface TreatmentInfo {
+  product: string;
+  substance: string;
+  strength: string;
+  role: "" | "Test" | "Reference";
+  batch: string;
+}
+const emptyInfo: TreatmentInfo = { product: "", substance: "", strength: "", role: "", batch: "" };
 
 function cryptoSeed(): number {
   if (typeof crypto !== "undefined" && crypto.getRandomValues) {
@@ -30,6 +40,7 @@ function cryptoSeed(): number {
 
 interface Generated {
   rows: GenRow[];
+  reserveRows: GenRow[];
   sequences: string[][];
   sequenceLabels: string[];
   periods: number;
@@ -52,6 +63,19 @@ export default function RandomizationPage() {
   const [blockSize, setBlockSize] = useState<number>(0);
   const [allocationRaw, setAllocationRaw] = useState<string>("");
   const [studyCode, setStudyCode] = useState<string>("");
+
+  // Faz 2 — numbering, reserves, mapping, blinding
+  const [reserveRaw, setReserveRaw] = useState<string>("");
+  const [randPrefix, setRandPrefix] = useState<string>("");
+  const [randStartRaw, setRandStartRaw] = useState<string>("1");
+  const [randPad, setRandPad] = useState<number>(3);
+  const [enrollEnabled, setEnrollEnabled] = useState<boolean>(false);
+  const [enrollPrefix, setEnrollPrefix] = useState<string>("");
+  const [enrollStartRaw, setEnrollStartRaw] = useState<string>("1");
+  const [enrollPad, setEnrollPad] = useState<number>(3);
+  const [mapping, setMapping] = useState<Record<string, TreatmentInfo>>({});
+  const [listType, setListType] = useState<"unblinded" | "blinded">("unblinded");
+
   const [genError, setGenError] = useState<{ en: string; tr: string; suggestion?: number } | null>(null);
   const [result, setResult] = useState<Generated | null>(null);
   const [repro, setRepro] = useState<"idle" | "ok" | "mismatch">("idle");
@@ -66,7 +90,6 @@ export default function RandomizationPage() {
   const design = method === "crossover" && designId ? DESIGNS[designId] : null;
   const isTRDesign = method === "crossover" && designId ? TR_DESIGNS.includes(designId) : false;
 
-  // Derived period/sequence preview for the config panel.
   const previewPeriods = design ? designPeriods(design, groups.length || (design.treatments ?? 0)) : 1;
   let previewSeqCount = 0;
   if (design && groups.length) {
@@ -99,11 +122,18 @@ export default function RandomizationPage() {
     }
   }
 
-  async function generate() {
-    setGenError(null);
-    setRepro("idle");
+  function getInfo(g: string, idx: number): TreatmentInfo {
+    const existing = mapping[g];
+    if (existing) return existing;
+    const role: TreatmentInfo["role"] = isTRDesign ? (idx === 0 ? "Test" : idx === 1 ? "Reference" : "") : "";
+    return { ...emptyInfo, role };
+  }
+  function setInfo(g: string, patch: Partial<TreatmentInfo>, idx: number) {
+    setMapping((m) => ({ ...m, [g]: { ...getInfo(g, idx), ...patch } }));
+  }
 
-    const res = generateSchedule({
+  function buildParams() {
+    return {
       method,
       drugs: groups,
       n,
@@ -111,8 +141,22 @@ export default function RandomizationPage() {
       seed,
       designId: method === "crossover" ? (designId || undefined) : undefined,
       allocationRatio: method === "parallel" ? allocationRaw : undefined,
-    });
+      reserve: parseInt(reserveRaw, 10) || 0,
+      randPrefix,
+      randStart: parseInt(randStartRaw, 10) || 1,
+      randPad,
+      enrollEnabled,
+      enrollPrefix,
+      enrollStart: parseInt(enrollStartRaw, 10) || 1,
+      enrollPad,
+    };
+  }
 
+  async function generate() {
+    setGenError(null);
+    setRepro("idle");
+
+    const res = generateSchedule(buildParams());
     if (!res.ok) {
       setResult(null);
       setGenError(res.error);
@@ -129,10 +173,12 @@ export default function RandomizationPage() {
       seed,
       allocation: method === "parallel" ? allocationRaw : "balanced",
     };
-    const hash = await sha256Hex(canonicalString(meta, res.rows));
+    const allRows = [...res.rows, ...res.reserveRows];
+    const hash = await sha256Hex(canonicalString(meta, allRows));
 
     setResult({
       rows: res.rows,
+      reserveRows: res.reserveRows,
       sequences: res.sequences,
       sequenceLabels: res.sequenceLabels,
       periods: res.periods,
@@ -146,21 +192,127 @@ export default function RandomizationPage() {
 
   async function reproCheck() {
     if (!result) return;
-    const res = generateSchedule({
-      method: result.meta.method as Method,
-      drugs: result.meta.drugs,
-      n: result.meta.n,
-      blockSize: result.meta.blockSize,
-      seed: result.meta.seed,
-      designId: (result.meta.designId as DesignId) || undefined,
-      allocationRatio: result.meta.method === "parallel" ? result.meta.allocation : undefined,
-    });
+    const res = generateSchedule(buildParams());
     if (!res.ok) {
       setRepro("mismatch");
       return;
     }
-    const hash = await sha256Hex(canonicalString(result.meta, res.rows));
+    const hash = await sha256Hex(canonicalString(result.meta, [...res.rows, ...res.reserveRows]));
     setRepro(hash === result.hash ? "ok" : "mismatch");
+  }
+
+  // --- derived helpers for output ---
+  const groupCode = (seqLabel: string): string => {
+    const i = result ? result.sequenceLabels.indexOf(seqLabel) : -1;
+    return `G${i + 1}`;
+  };
+  const allRows = result ? [...result.rows, ...result.reserveRows] : [];
+  const mainWord = lang === "en" ? "Main" : "Esas";
+  const setLabel = lang === "en" ? "Set" : "Küme";
+
+  // --- export matrix builders ---
+  function scheduleMatrix(blinded: boolean): Cell[][] {
+    if (!result) return [];
+    const header: Cell[] = ["Randomization No"];
+    if (enrollEnabled) header.push(tr(lang, "enrollCol"));
+    header.push(setLabel);
+    if (method === "crossover") {
+      if (blinded) header.push(tr(lang, "groupCode"));
+      else {
+        header.push(tr(lang, "seqCol"));
+        for (let i = 0; i < result.periods; i++) header.push(`${tr(lang, "period")} ${i + 1}`);
+      }
+    } else {
+      header.push(blinded ? tr(lang, "groupCode") : tr(lang, "treatment"));
+    }
+
+    const body: Cell[][] = allRows.map((row) => {
+      const line: Cell[] = [row.subjectId];
+      if (enrollEnabled) line.push(row.enrollNo ?? "");
+      line.push(row.isReserve ? tr(lang, "reserveTag") : mainWord);
+      if (method === "crossover") {
+        if (blinded) line.push(groupCode(row.sequenceLabel));
+        else line.push(row.sequenceLabel, ...row.treatments);
+      } else {
+        line.push(blinded ? groupCode(row.sequenceLabel) : row.treatments[0]);
+      }
+      return line;
+    });
+    return [header, ...body];
+  }
+
+  function mappingFilled(): boolean {
+    return groups.some((g) => {
+      const info = mapping[g];
+      return info && (info.product || info.substance || info.strength || info.role || info.batch);
+    });
+  }
+
+  function mappingMatrix(): Cell[][] {
+    const header: Cell[] = [
+      tr(lang, "tmCode"),
+      tr(lang, "tmProduct"),
+      tr(lang, "tmSubstance"),
+      tr(lang, "tmStrength"),
+      tr(lang, "tmFormulation"),
+      tr(lang, "tmBatch"),
+    ];
+    const body = groups.map((g, idx) => {
+      const info = getInfo(g, idx);
+      const role = info.role === "Test" ? tr(lang, "tmTest") : info.role === "Reference" ? tr(lang, "tmReference") : "";
+      return [g, info.product, info.substance, info.strength, role, info.batch];
+    });
+    return [header, ...body];
+  }
+
+  function auditMatrix(): Cell[][] {
+    if (!result) return [];
+    const seqCount = result.sequenceLabels.length;
+    const rows: Cell[][] = [];
+    if (result.meta.studyCode) rows.push([tr(lang, "studyCode").replace(/ \(.*\)$/, ""), result.meta.studyCode]);
+    rows.push([tr(lang, "mDesign"), method === "parallel" ? tr(lang, "parallel") : design?.label[lang] ?? designId]);
+    rows.push([tr(lang, "mTreatments"), `${groups.join(", ")} (${groups.length})`]);
+    rows.push([tr(lang, "mSequences"), `${result.sequenceLabels.join(", ")} (${seqCount})`]);
+    rows.push([
+      method === "parallel" ? tr(lang, "allocationRatio") : tr(lang, "mPerSeq"),
+      method === "parallel" ? result.meta.allocation : String(n / seqCount),
+    ]);
+    if (result.reserveRows.length) rows.push([tr(lang, "reserveSubjects"), String(result.reserveRows.length)]);
+    rows.push([tr(lang, "mBlock"), String(result.meta.blockSize)]);
+    rows.push([tr(lang, "mSeed"), String(result.meta.seed)]);
+    rows.push([tr(lang, "mAlgo"), `${RNG_ALGO} v${RNG_VERSION}`]);
+    rows.push([tr(lang, "mGenerated"), result.generatedAt]);
+    rows.push([tr(lang, "mTool"), `${TOOL_NAME} v${TOOL_VERSION}`]);
+    rows.push([`${tr(lang, "mVerification")} (SHA-256)`, result.code]);
+    return rows;
+  }
+
+  function exportCSV() {
+    if (!result) {
+      alert(tr(lang, "selectMethodFirst"));
+      return;
+    }
+    const comments = auditMatrix()
+      .map(([k, v]) => `# ${k}: ${v}`)
+      .join("\r\n");
+    const csv = `${comments}\r\n\r\n${toCSV(scheduleMatrix(listType === "blinded"))}\r\n`;
+    download(`randomization_${result.code}.csv`, "text/csv;charset=utf-8", "﻿" + csv);
+  }
+
+  function exportXLSX() {
+    if (!result) {
+      alert(tr(lang, "selectMethodFirst"));
+      return;
+    }
+    const sheets = [{ name: tr(lang, "schedule"), rows: scheduleMatrix(listType === "blinded") }];
+    if (mappingFilled()) sheets.push({ name: tr(lang, "treatmentMapSheet"), rows: mappingMatrix() });
+    sheets.push({ name: tr(lang, "auditSheet"), rows: auditMatrix() });
+    const bytes = buildXlsx(sheets);
+    download(
+      `randomization_${result.code}.xlsx`,
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      bytes
+    );
   }
 
   async function exportPDF() {
@@ -168,35 +320,29 @@ export default function RandomizationPage() {
       alert(tr(lang, "selectMethodFirst"));
       return;
     }
-    const { rows, periods, meta } = result;
+    const blinded = listType === "blinded";
+    const matrix = scheduleMatrix(blinded);
+    const head = matrix[0] as string[];
+    const body = matrix.slice(1) as string[][];
+
     const { default: jsPDF } = await import("jspdf");
     const { default: autoTable } = await import("jspdf-autotable");
-
     const doc = new jsPDF();
-    const showSeq = method === "crossover";
-    const pdfHeaders = [
-      tr(lang, "idCol"),
-      ...(showSeq ? [tr(lang, "seqCol")] : []),
-      ...Array.from({ length: periods }, (_, i) =>
-        showSeq ? `${tr(lang, "period")} ${i + 1}` : tr(lang, "treatment")
-      ),
-    ];
 
     doc.setFont("times", "bold");
     doc.setFontSize(14);
-    doc.text("Randomization Schedule", 14, 18);
+    doc.text(`Randomization Schedule${blinded ? " (Blinded)" : ""}`, 14, 18);
     doc.setFont("courier", "normal");
     doc.setFontSize(8);
-    const subtitle = `${method.toUpperCase()}${design ? " · " + design.label.en : ""} · DRUGS: ${groups.join(", ")} · N=${n}`;
-    doc.text(subtitle, 14, 26);
+    doc.text(
+      `${method.toUpperCase()}${design ? " · " + design.label.en : ""} · DRUGS: ${groups.join(", ")} · N=${n}`,
+      14,
+      26
+    );
 
     autoTable(doc, {
-      head: [pdfHeaders],
-      body: rows.map((row) => [
-        row.subjectId,
-        ...(showSeq ? [row.sequenceLabel] : []),
-        ...row.treatments,
-      ]),
+      head: [head],
+      body,
       startY: 32,
       styles: { font: "courier", fontSize: 8, cellPadding: 2, textColor: [20, 20, 20], fillColor: [255, 255, 255] },
       headStyles: { fillColor: [235, 235, 230], textColor: [20, 20, 20], fontStyle: "bold" },
@@ -204,11 +350,9 @@ export default function RandomizationPage() {
       tableLineColor: [180, 178, 170],
       tableLineWidth: 0.2,
       didParseCell(data) {
-        const seqOffset = showSeq ? 1 : 0;
         if (data.column.index > 0) data.cell.styles.halign = "center";
-        if (data.section === "body" && data.column.index > seqOffset) {
-          const cellVal = String(data.cell.raw);
-          const idx = groups.indexOf(cellVal);
+        if (data.section === "body" && !blinded) {
+          const idx = groups.indexOf(String(data.cell.raw));
           if (idx >= 0) {
             data.cell.styles.textColor = GROUP_COLORS_PDF[idx % GROUP_COLORS_PDF.length];
             data.cell.styles.fontStyle = "bold";
@@ -217,35 +361,24 @@ export default function RandomizationPage() {
       },
     });
 
-    const finalY = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 100;
-    let y = finalY + 14;
+    let y = ((doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 100) + 12;
+    const writeLines = (lines: string[]) => {
+      doc.setFont("courier", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(100, 100, 100);
+      for (const line of lines) {
+        if (y > 282) { doc.addPage(); y = 20; }
+        doc.text(line, 14, y);
+        y += 5;
+      }
+      doc.setTextColor(0, 0, 0);
+    };
 
-    doc.setFont("courier", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(100, 100, 100);
-
-    const seqCount = result.sequenceLabels.length;
-    const lines = [
-      "— Audit & reproducibility —",
-      meta.studyCode ? `Study code:   ${meta.studyCode}` : null,
-      `Design:       ${method === "parallel" ? "Parallel" : design?.label.en ?? designId}`,
-      `Treatments:   ${groups.join(", ")} (${groups.length})`,
-      `Sequences:    ${result.sequenceLabels.join(", ")} (${seqCount})`,
-      method === "parallel" ? `Allocation:   ${meta.allocation}` : `Subjects/seq: ${n / seqCount}`,
-      `Block size:   ${meta.blockSize}`,
-      `Seed:         ${meta.seed}`,
-      `Algorithm:    ${RNG_ALGO} v${RNG_VERSION} (Fisher-Yates)`,
-      `Generated:    ${result.generatedAt}`,
-      `Tool:         ${TOOL_NAME} v${TOOL_VERSION} — trialgrids.com`,
-      `Verification: ${result.code}  (SHA-256, first 16)`,
-    ].filter(Boolean) as string[];
-
-    for (const line of lines) {
-      if (y > 280) { doc.addPage(); y = 20; }
-      doc.text(line, 14, y);
-      y += 5;
+    if (mappingFilled()) {
+      writeLines(["— Treatment map —", ...mappingMatrix().slice(1).map((r) => r.join("  ·  "))]);
+      y += 3;
     }
-    doc.setTextColor(0, 0, 0);
+    writeLines(["— Audit & reproducibility —", ...auditMatrix().map(([k, v]) => `${k}: ${v}`)]);
 
     const totalPages = doc.getNumberOfPages();
     for (let p = 1; p <= totalPages; p++) {
@@ -256,14 +389,35 @@ export default function RandomizationPage() {
       doc.text(`Page ${p} / ${totalPages}`, doc.internal.pageSize.width - 14, doc.internal.pageSize.height - 8, { align: "right" });
       doc.text(`trialgrids.com · verify ${result.code}`, 14, doc.internal.pageSize.height - 8);
     }
-
-    doc.save("randomization.pdf");
+    doc.save(`randomization_${result.code}.pdf`);
   }
 
-  const showSeqCol = method === "crossover" && !!result;
-  const resultPeriods = result?.periods ?? 1;
-  const periodHeaders = Array.from({ length: resultPeriods }, (_, i) => `${tr(lang, "period")} ${i + 1}`);
+  // --- balance summary ---
+  function balanceData() {
+    if (!result) return null;
+    const seqCounts: Record<string, number> = {};
+    const reserveCounts: Record<string, number> = {};
+    for (const row of result.rows) seqCounts[row.sequenceLabel] = (seqCounts[row.sequenceLabel] ?? 0) + 1;
+    for (const row of result.reserveRows) reserveCounts[row.sequenceLabel] = (reserveCounts[row.sequenceLabel] ?? 0) + 1;
+    const perPeriod: Record<string, number>[] = Array.from({ length: result.periods }, () => ({}));
+    for (const row of result.rows)
+      row.treatments.forEach((t, pi) => {
+        perPeriod[pi][t] = (perPeriod[pi][t] ?? 0) + 1;
+      });
+    return { seqCounts, reserveCounts, perPeriod };
+  }
+  const balance = balanceData();
+
+  const showSeqCol = method === "crossover" && !!result && listType === "unblinded";
+  const showGroupCol = !!result && listType === "blinded";
   const groupIndex = (val: string) => groups.indexOf(val);
+
+  const numInput = (label: string, value: string, onChange: (v: string) => void, width = "100%", placeholder = "") => (
+    <div>
+      <label>{label}</label>
+      <input type="text" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={{ width, fontSize: ".72rem" }} />
+    </div>
+  );
 
   const metaRow = (label: string, value: string) => (
     <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", padding: ".2rem 0" }}>
@@ -302,16 +456,10 @@ export default function RandomizationPage() {
           <div style={{ marginBottom: "1.5rem" }}>
             <label>{tr(lang, "method")}</label>
             <div className="method-toggle">
-              <button
-                className={`method-btn${method === "parallel" ? " active" : ""}`}
-                onClick={() => { setMethod("parallel"); clearOutput(); }}
-              >
+              <button className={`method-btn${method === "parallel" ? " active" : ""}`} onClick={() => { setMethod("parallel"); clearOutput(); }}>
                 {tr(lang, "parallel")}
               </button>
-              <button
-                className={`method-btn${method === "crossover" ? " active" : ""}`}
-                onClick={() => { setMethod("crossover"); clearOutput(); }}
-              >
+              <button className={`method-btn${method === "crossover" ? " active" : ""}`} onClick={() => { setMethod("crossover"); clearOutput(); }}>
                 {tr(lang, "crossover")}
               </button>
             </div>
@@ -365,7 +513,7 @@ export default function RandomizationPage() {
               <input
                 type="text"
                 value={groupsRaw}
-                onChange={(e) => { setGroupsRaw(e.target.value); }}
+                onChange={(e) => setGroupsRaw(e.target.value)}
                 placeholder={isTRDesign ? "T, R" : "A, B"}
                 style={{ width: "100%", fontSize: ".72rem" }}
               />
@@ -404,43 +552,109 @@ export default function RandomizationPage() {
             {method === "parallel" && (
               <div>
                 <label>{tr(lang, "allocationRatio")}</label>
-                <input
-                  type="text"
-                  value={allocationRaw}
-                  onChange={(e) => setAllocationRaw(e.target.value)}
-                  placeholder="1:1"
-                  style={{ width: "100%" }}
-                />
+                <input type="text" value={allocationRaw} onChange={(e) => setAllocationRaw(e.target.value)} placeholder="1:1" style={{ width: "100%" }} />
               </div>
             )}
             <div>
               <label>{tr(lang, "studyCode")}</label>
-              <input
-                type="text"
-                value={studyCode}
-                onChange={(e) => setStudyCode(e.target.value)}
-                placeholder="IST-2026-01"
-                style={{ width: "100%", fontSize: ".72rem" }}
-              />
+              <input type="text" value={studyCode} onChange={(e) => setStudyCode(e.target.value)} placeholder="IST-2026-01" style={{ width: "100%", fontSize: ".72rem" }} />
+            </div>
+            <div>
+              <label>{tr(lang, "reserveSubjects")}</label>
+              <input type="text" inputMode="numeric" value={reserveRaw} onChange={(e) => setReserveRaw(e.target.value.replace(/[^0-9]/g, ""))} placeholder="0" style={{ width: "100%" }} />
             </div>
           </div>
 
-          <div className="btn-row">
+          {/* Numbering options */}
+          <details style={{ marginTop: "1.5rem", border: "1px solid var(--rule, #e8e4d8)", borderRadius: "6px", padding: ".5rem .9rem" }}>
+            <summary style={{ cursor: "pointer", fontFamily: "var(--font-jetbrains-mono)", fontSize: ".72rem", textTransform: "uppercase", letterSpacing: ".05em" }}>
+              {tr(lang, "optionsTitle")}
+            </summary>
+            <div className="controls" style={{ marginTop: "1rem", alignItems: "flex-start" }}>
+              {numInput(tr(lang, "randPrefix"), randPrefix, setRandPrefix, "100%", "IST-")}
+              {numInput(tr(lang, "startNo"), randStartRaw, (v) => setRandStartRaw(v.replace(/[^0-9]/g, "")), "100%", "1")}
+              <div>
+                <label>{tr(lang, "padWidth")}</label>
+                <Select value={String(randPad)} onChange={(v) => setRandPad(parseInt(v, 10))} options={[2, 3, 4, 5].map((b) => ({ value: String(b), label: String(b) }))} />
+              </div>
+            </div>
+            <label style={{ display: "flex", alignItems: "center", gap: ".5rem", marginTop: "1rem", cursor: "pointer", fontFamily: "var(--font-inter, system-ui)", fontSize: ".8rem", textTransform: "none", letterSpacing: 0 }}>
+              <input type="checkbox" checked={enrollEnabled} onChange={(e) => setEnrollEnabled(e.target.checked)} />
+              {tr(lang, "enrollEnabled")}
+            </label>
+            {enrollEnabled && (
+              <div className="controls" style={{ marginTop: ".75rem", alignItems: "flex-start" }}>
+                {numInput(tr(lang, "enrollPrefix"), enrollPrefix, setEnrollPrefix, "100%", "SCR-")}
+                {numInput(tr(lang, "startNo"), enrollStartRaw, (v) => setEnrollStartRaw(v.replace(/[^0-9]/g, "")), "100%", "1")}
+                <div>
+                  <label>{tr(lang, "padWidth")}</label>
+                  <Select value={String(enrollPad)} onChange={(v) => setEnrollPad(parseInt(v, 10))} options={[2, 3, 4, 5].map((b) => ({ value: String(b), label: String(b) }))} />
+                </div>
+              </div>
+            )}
+          </details>
+
+          {/* Treatment details / mapping */}
+          {groups.length > 0 && (
+            <details style={{ marginTop: "1rem", border: "1px solid var(--rule, #e8e4d8)", borderRadius: "6px", padding: ".5rem .9rem" }}>
+              <summary style={{ cursor: "pointer", fontFamily: "var(--font-jetbrains-mono)", fontSize: ".72rem", textTransform: "uppercase", letterSpacing: ".05em" }}>
+                {tr(lang, "treatmentDetailsTitle")}
+              </summary>
+              <p style={{ margin: ".6rem 0", fontSize: ".7rem", color: "var(--muted, #7a7868)", fontFamily: "var(--font-jetbrains-mono)" }}>{tr(lang, "mappingHint")}</p>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", fontSize: ".72rem" }}>
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: "left" }}>{tr(lang, "tmCode")}</th>
+                      <th style={{ textAlign: "left" }}>{tr(lang, "tmProduct")}</th>
+                      <th style={{ textAlign: "left" }}>{tr(lang, "tmSubstance")}</th>
+                      <th style={{ textAlign: "left" }}>{tr(lang, "tmStrength")}</th>
+                      <th style={{ textAlign: "left" }}>{tr(lang, "tmFormulation")}</th>
+                      <th style={{ textAlign: "left" }}>{tr(lang, "tmBatch")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {groups.map((g, idx) => {
+                      const info = getInfo(g, idx);
+                      const cell = (v: string, on: (val: string) => void, ph = "") => (
+                        <input type="text" value={v} onChange={(e) => on(e.target.value)} placeholder={ph} style={{ width: "100%", fontSize: ".7rem" }} />
+                      );
+                      return (
+                        <tr key={g}>
+                          <td style={{ fontFamily: "var(--font-jetbrains-mono)", fontWeight: 600, color: GROUP_COLORS_CSS[idx % GROUP_COLORS_CSS.length] }}>{g}</td>
+                          <td>{cell(info.product, (val) => setInfo(g, { product: val }, idx))}</td>
+                          <td>{cell(info.substance, (val) => setInfo(g, { substance: val }, idx))}</td>
+                          <td>{cell(info.strength, (val) => setInfo(g, { strength: val }, idx), "100 mg")}</td>
+                          <td>
+                            <Select
+                              value={info.role}
+                              onChange={(val) => setInfo(g, { role: val as TreatmentInfo["role"] }, idx)}
+                              options={[
+                                { value: "", label: tr(lang, "tmNone") },
+                                { value: "Test", label: tr(lang, "tmTest") },
+                                { value: "Reference", label: tr(lang, "tmReference") },
+                              ]}
+                            />
+                          </td>
+                          <td>{cell(info.batch, (val) => setInfo(g, { batch: val }, idx))}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          )}
+
+          <div className="btn-row" style={{ flexWrap: "wrap" }}>
             <button className="btn" onClick={generate}>{tr(lang, "generate")}</button>
             <button className="btn ghost" onClick={exportPDF}>{tr(lang, "exportPdf")}</button>
+            <button className="btn ghost" onClick={exportCSV}>{tr(lang, "exportCsv")}</button>
+            <button className="btn ghost" onClick={exportXLSX}>{tr(lang, "exportXlsx")}</button>
           </div>
 
           {genError && (
-            <div style={{
-              marginTop: "1rem",
-              padding: ".75rem 1rem",
-              border: "1px solid #c85a40",
-              color: "#c85a40",
-              fontFamily: "var(--font-jetbrains-mono)",
-              fontSize: ".75rem",
-              background: "rgba(200, 90, 64, 0.05)",
-              borderRadius: "4px",
-            }}>
+            <div style={{ marginTop: "1rem", padding: ".75rem 1rem", border: "1px solid #c85a40", color: "#c85a40", fontFamily: "var(--font-jetbrains-mono)", fontSize: ".75rem", background: "rgba(200, 90, 64, 0.05)", borderRadius: "4px" }}>
               ⚠ {genError[lang]}
               {genError.suggestion != null && (
                 <>
@@ -458,29 +672,43 @@ export default function RandomizationPage() {
 
           {result && (
             <>
+              {/* List type toggle */}
+              <div style={{ marginTop: "1.5rem", marginBottom: ".75rem" }}>
+                <label>{tr(lang, "listType")}</label>
+                <div className="method-toggle" style={{ maxWidth: "320px" }}>
+                  <button className={`method-btn${listType === "unblinded" ? " active" : ""}`} onClick={() => setListType("unblinded")}>{tr(lang, "unblinded")}</button>
+                  <button className={`method-btn${listType === "blinded" ? " active" : ""}`} onClick={() => setListType("blinded")}>{tr(lang, "blinded")}</button>
+                </div>
+                {listType === "blinded" && (
+                  <p style={{ marginTop: ".4rem", fontSize: ".7rem", color: "var(--muted, #7a7868)", fontFamily: "var(--font-jetbrains-mono)" }}>{tr(lang, "blindedHint")}</p>
+                )}
+              </div>
+
               <div className="result">
                 <table>
                   <thead>
                     <tr>
                       <th>{tr(lang, "idCol")}</th>
+                      {enrollEnabled && <th>{tr(lang, "enrollCol")}</th>}
+                      <th style={{ textAlign: "center" }}>{setLabel}</th>
+                      {showGroupCol && <th style={{ textAlign: "center" }}>{tr(lang, "groupCode")}</th>}
                       {showSeqCol && <th style={{ textAlign: "center" }}>{tr(lang, "seqCol")}</th>}
-                      {method === "crossover"
-                        ? periodHeaders.map((h) => <th key={h} style={{ textAlign: "center" }}>{h}</th>)
-                        : <th style={{ textAlign: "center" }}>{tr(lang, "treatment")}</th>}
+                      {listType === "unblinded" && (method === "crossover"
+                        ? Array.from({ length: result.periods }, (_, i) => <th key={i} style={{ textAlign: "center" }}>{`${tr(lang, "period")} ${i + 1}`}</th>)
+                        : <th style={{ textAlign: "center" }}>{tr(lang, "treatment")}</th>)}
                     </tr>
                   </thead>
                   <tbody>
-                    {result.rows.map((row) => (
-                      <tr key={row.subjectId}>
-                        <td>{row.subjectId}</td>
-                        {showSeqCol && (
-                          <td style={{ textAlign: "center", fontFamily: "var(--font-jetbrains-mono)", fontWeight: 600 }}>{row.sequenceLabel}</td>
-                        )}
-                        {row.treatments.map((t, i) => {
+                    {allRows.map((row) => (
+                      <tr key={(row.isReserve ? "r" : "m") + row.subjectId} style={row.isReserve ? { background: "rgba(184,67,42,0.04)" } : undefined}>
+                        <td style={row.isReserve ? { fontStyle: "italic" } : undefined}>{row.subjectId}</td>
+                        {enrollEnabled && <td>{row.enrollNo ?? ""}</td>}
+                        <td style={{ textAlign: "center", fontSize: ".68rem", color: "var(--muted, #7a7868)" }}>{row.isReserve ? tr(lang, "reserveTag") : mainWord}</td>
+                        {showGroupCol && <td style={{ textAlign: "center", fontFamily: "var(--font-jetbrains-mono)", fontWeight: 600 }}>{groupCode(row.sequenceLabel)}</td>}
+                        {showSeqCol && <td style={{ textAlign: "center", fontFamily: "var(--font-jetbrains-mono)", fontWeight: 600 }}>{row.sequenceLabel}</td>}
+                        {listType === "unblinded" && row.treatments.map((t, i) => {
                           const idx = groupIndex(t);
-                          return (
-                            <td key={i} style={{ color: GROUP_COLORS_CSS[idx % GROUP_COLORS_CSS.length], fontWeight: 500, textAlign: "center" }}>{t}</td>
-                          );
+                          return <td key={i} style={{ color: GROUP_COLORS_CSS[idx % GROUP_COLORS_CSS.length], fontWeight: 500, textAlign: "center" }}>{t}</td>;
                         })}
                       </tr>
                     ))}
@@ -488,65 +716,79 @@ export default function RandomizationPage() {
                 </table>
               </div>
 
-              {/* Audit & reproducibility panel */}
-              <div style={{
-                marginTop: "1.5rem",
-                border: "1px solid var(--rule, #e8e4d8)",
-                borderRadius: "6px",
-                padding: "1rem 1.25rem",
-                fontSize: ".75rem",
-                fontFamily: "var(--font-inter, system-ui)",
-                background: "var(--paper-2, #fff)",
-              }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: ".5rem" }}>
-                  <strong style={{ fontFamily: "var(--font-jetbrains-mono)", textTransform: "uppercase", letterSpacing: ".05em", fontSize: ".7rem" }}>
-                    {tr(lang, "auditTitle")}
-                  </strong>
-                  {result.varianceBalanced && method === "crossover" && (
-                    <span style={{ color: "#5a7a3a", fontFamily: "var(--font-jetbrains-mono)", fontSize: ".68rem" }}>
-                      ✓ {tr(lang, "varianceBalanced")}
-                    </span>
-                  )}
+              {/* Balance summary */}
+              {balance && (
+                <div style={{ marginTop: "1.5rem", border: "1px solid var(--rule, #e8e4d8)", borderRadius: "6px", padding: "1rem 1.25rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: ".75rem" }}>
+                    <strong style={{ fontFamily: "var(--font-jetbrains-mono)", textTransform: "uppercase", letterSpacing: ".05em", fontSize: ".7rem" }}>{tr(lang, "balanceTitle")}</strong>
+                    {result.varianceBalanced && method === "crossover" && (
+                      <span style={{ color: "#5a7a3a", fontFamily: "var(--font-jetbrains-mono)", fontSize: ".68rem" }}>✓ {tr(lang, "varianceBalanced")}</span>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap", fontSize: ".75rem" }}>
+                    <table style={{ fontSize: ".75rem" }}>
+                      <thead>
+                        <tr>
+                          {showGroupCol && <th style={{ textAlign: "left" }}>{tr(lang, "bGroup")}</th>}
+                          <th style={{ textAlign: "left" }}>{tr(lang, "bSequence")}</th>
+                          <th style={{ textAlign: "right" }}>{tr(lang, "bN")}</th>
+                          {result.reserveRows.length > 0 && <th style={{ textAlign: "right" }}>{tr(lang, "bReserve")}</th>}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {result.sequenceLabels.map((s, i) => (
+                          <tr key={s}>
+                            {showGroupCol && <td style={{ fontFamily: "var(--font-jetbrains-mono)" }}>{`G${i + 1}`}</td>}
+                            <td style={{ fontFamily: "var(--font-jetbrains-mono)" }}>{listType === "blinded" ? `G${i + 1}` : s}</td>
+                            <td style={{ textAlign: "right" }}>{balance.seqCounts[s] ?? 0}</td>
+                            {result.reserveRows.length > 0 && <td style={{ textAlign: "right" }}>{balance.reserveCounts[s] ?? 0}</td>}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {method === "crossover" && listType === "unblinded" && (
+                      <div>
+                        <div style={{ fontSize: ".68rem", color: "var(--muted, #7a7868)", marginBottom: ".35rem", fontFamily: "var(--font-jetbrains-mono)" }}>{tr(lang, "bPerPeriod")}</div>
+                        <table style={{ fontSize: ".75rem" }}>
+                          <thead>
+                            <tr>
+                              <th style={{ textAlign: "left" }}>{tr(lang, "period")}</th>
+                              {groups.map((g) => <th key={g} style={{ textAlign: "right" }}>{g}</th>)}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {balance.perPeriod.map((dist, pi) => (
+                              <tr key={pi}>
+                                <td>{pi + 1}</td>
+                                {groups.map((g) => <td key={g} style={{ textAlign: "right" }}>{dist[g] ?? 0}</td>)}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
                 </div>
+              )}
 
-                {result.meta.studyCode && metaRow(tr(lang, "studyCode").replace(" (optional)", "").replace(" (opsiyonel)", ""), result.meta.studyCode)}
-                {metaRow(tr(lang, "mDesign"), method === "parallel" ? tr(lang, "parallel") : design?.label[lang] ?? designId)}
-                {metaRow(tr(lang, "mTreatments"), `${groups.join(", ")} (${groups.length})`)}
-                {metaRow(tr(lang, "mSequences"), `${result.sequenceLabels.join(", ")} (${result.sequenceLabels.length})`)}
-                {metaRow(
-                  method === "parallel" ? tr(lang, "allocationRatio") : tr(lang, "mPerSeq"),
-                  method === "parallel" ? result.meta.allocation : String(n / result.sequenceLabels.length)
-                )}
-                {metaRow(tr(lang, "mBlock"), String(result.meta.blockSize))}
-                {metaRow(tr(lang, "mSeed"), String(result.meta.seed))}
-                {metaRow(tr(lang, "mAlgo"), `${RNG_ALGO} v${RNG_VERSION}`)}
-                {metaRow(tr(lang, "mGenerated"), result.generatedAt)}
-                {metaRow(tr(lang, "mTool"), `${TOOL_NAME} v${TOOL_VERSION}`)}
-
+              {/* Audit & reproducibility */}
+              <div style={{ marginTop: "1.5rem", border: "1px solid var(--rule, #e8e4d8)", borderRadius: "6px", padding: "1rem 1.25rem", fontSize: ".75rem", fontFamily: "var(--font-inter, system-ui)", background: "var(--paper-2, #fff)" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: ".5rem" }}>
+                  <strong style={{ fontFamily: "var(--font-jetbrains-mono)", textTransform: "uppercase", letterSpacing: ".05em", fontSize: ".7rem" }}>{tr(lang, "auditTitle")}</strong>
+                </div>
+                {auditMatrix().filter(([, v]) => v !== result.code).map(([k, v], i) => <div key={i}>{metaRow(String(k), String(v))}</div>)}
                 <div style={{ marginTop: ".6rem", paddingTop: ".6rem", borderTop: "1px solid var(--rule, #e8e4d8)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
                   <div>
                     <div style={{ color: "var(--muted, #7a7868)", fontSize: ".68rem" }}>{tr(lang, "mVerification")} (SHA-256)</div>
                     <code style={{ fontFamily: "var(--font-jetbrains-mono)", fontSize: ".95rem", letterSpacing: ".05em" }}>{result.code}</code>
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <button
-                      className="btn ghost"
-                      style={{ marginBottom: ".25rem" }}
-                      onClick={reproCheck}
-                    >
-                      {tr(lang, "reproCheck")}
-                    </button>
-                    {repro === "ok" && (
-                      <div style={{ color: "#5a7a3a", fontFamily: "var(--font-jetbrains-mono)", fontSize: ".7rem" }}>✓ {tr(lang, "reproOk")}</div>
-                    )}
-                    {repro === "mismatch" && (
-                      <div style={{ color: "#c85a40", fontFamily: "var(--font-jetbrains-mono)", fontSize: ".7rem" }}>✗ {tr(lang, "reproMismatch")}</div>
-                    )}
+                    <button className="btn ghost" style={{ marginBottom: ".25rem" }} onClick={reproCheck}>{tr(lang, "reproCheck")}</button>
+                    {repro === "ok" && <div style={{ color: "#5a7a3a", fontFamily: "var(--font-jetbrains-mono)", fontSize: ".7rem" }}>✓ {tr(lang, "reproOk")}</div>}
+                    {repro === "mismatch" && <div style={{ color: "#c85a40", fontFamily: "var(--font-jetbrains-mono)", fontSize: ".7rem" }}>✗ {tr(lang, "reproMismatch")}</div>}
                   </div>
                 </div>
-                <p style={{ marginTop: ".5rem", color: "var(--muted, #7a7868)", fontSize: ".66rem", fontFamily: "var(--font-jetbrains-mono)" }}>
-                  {tr(lang, "reproHint")}
-                </p>
+                <p style={{ marginTop: ".5rem", color: "var(--muted, #7a7868)", fontSize: ".66rem", fontFamily: "var(--font-jetbrains-mono)" }}>{tr(lang, "reproHint")}</p>
               </div>
             </>
           )}
