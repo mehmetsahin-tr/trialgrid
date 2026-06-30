@@ -110,7 +110,7 @@ export default function PixelGrid() {
     }
 
     let raf = 0;
-    let start = performance.now();
+    const start = performance.now();
     const SWEEP = 3200; // ms to sweep across all columns
     const HOLD = 1400; // ms to hold the full grid before reshuffling
     const cycle = SWEEP + HOLD;

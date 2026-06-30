@@ -86,7 +86,9 @@ export default function RandomizationPage() {
   const [repro, setRepro] = useState<"idle" | "ok" | "mismatch">("idle");
 
   useEffect(() => {
+    // Sync the seed input once on mount (initial seed is generated client-side).
     setSeedRaw(String(seed));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const onLang = useCallback((l: Lang) => setLang(l), []);
@@ -432,9 +434,9 @@ export default function RandomizationPage() {
           }
         },
       });
-      let y = ((doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 100) + 12;
+      const y = ((doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 100) + 12;
       const sigDate = tr(lang, "sigDate");
-      y = writeLines(
+      writeLines(
         [
           "— Signatures —",
           `${tr(lang, "sigPrepared")}: ______________________    ${sigDate}: ____________`,
@@ -461,9 +463,9 @@ export default function RandomizationPage() {
         tableLineColor: [180, 178, 170],
         tableLineWidth: 0.2,
       });
-      let y = ((doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 100) + 12;
+      const y = ((doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 100) + 12;
       const sigDate = tr(lang, "sigDate");
-      y = writeLines(
+      writeLines(
         [
           `${tr(lang, "sigPrepared")}: ______________________    ${sigDate}: ____________`,
           "",
