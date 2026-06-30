@@ -6,9 +6,11 @@ type Lang = "en" | "tr";
 
 type Props = {
   onChange: (lang: Lang) => void;
+  /** Render inline (within a layout) instead of absolutely positioned. */
+  inline?: boolean;
 };
 
-export default function LanguageToggle({ onChange }: Props) {
+export default function LanguageToggle({ onChange, inline = false }: Props) {
   const [lang, setLang] = useState<Lang>("en");
 
   useEffect(() => {
@@ -36,24 +38,22 @@ export default function LanguageToggle({ onChange }: Props) {
   return (
     <div
       style={{
-        position: "absolute",
-        top: "1.5rem",
-        right: "1.5rem",
-        display: "inline-flex",
+        ...(inline
+          ? { display: "inline-flex" }
+          : { position: "absolute", top: "1.5rem", right: "1.5rem", display: "inline-flex", zIndex: 1 }),
         background: "var(--paper-2, #ffffff)",
         border: "1px solid var(--rule, #e8e4d8)",
         borderRadius: "4px",
         padding: "2px",
         fontFamily: "var(--font-inter, system-ui)",
         fontSize: "0.75rem",
-        zIndex: 1,
       }}
     >
       <button
         onClick={() => handleChange("en")}
         style={{
           padding: "4px 14px",
-          background: lang === "en" ? "#d97757" : "transparent",
+          background: lang === "en" ? "var(--accent, #7c3aed)" : "transparent",
           color: lang === "en" ? "#ffffff" : "var(--muted, #7a7868)",
           border: "none",
           borderRadius: "3px",
@@ -69,7 +69,7 @@ export default function LanguageToggle({ onChange }: Props) {
         onClick={() => handleChange("tr")}
         style={{
           padding: "4px 14px",
-          background: lang === "tr" ? "#d97757" : "transparent",
+          background: lang === "tr" ? "var(--accent, #7c3aed)" : "transparent",
           color: lang === "tr" ? "#ffffff" : "var(--muted, #7a7868)",
           border: "none",
           borderRadius: "3px",

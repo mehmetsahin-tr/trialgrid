@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Select from "@/app/components/Select";
 import LanguageToggle from "@/app/components/LanguageToggle";
 import { RNG_ALGO, RNG_VERSION } from "./lib/rng";
 import { DESIGNS, DESIGN_ORDER, designPeriods } from "./lib/designs";
 import type { DesignId } from "./lib/designs";
-import { generateSchedule } from "./lib/generate";
+import { generateSchedule, parseAllocationRatio, BLOCK_OPTIONS } from "./lib/generate";
 import type { GenRow, Method, Stratum } from "./lib/generate";
 import { canonicalString, sha256Hex, verificationCode } from "./lib/hash";
 import type { AuditMeta } from "./lib/hash";
@@ -17,8 +17,11 @@ import { buildXlsx } from "./lib/xlsx";
 import type { Cell } from "./lib/xlsx";
 import { toCSV, download } from "./lib/export";
 
-const GROUP_COLORS_CSS = ["#5b8dc4", "#c85a40", "#5a7a3a", "#8a5a2b"];
-const GROUP_COLORS_PDF = [[91, 141, 196], [200, 90, 64], [90, 122, 58], [138, 90, 43]] as [number, number, number][];
+// Calm, non-clashing data colours (purple / teal / olive / amber), WCAG AA on
+// light backgrounds. The SEQUENCE column carries the AB/BA text too, so colour
+// is never the only distinguisher (colour-blind safe).
+const GROUP_COLORS_CSS = ["#6d28d9", "#0f766e", "#4d7c0f", "#b45309"];
+const GROUP_COLORS_PDF = [[109, 40, 217], [15, 118, 110], [77, 124, 15], [180, 83, 9]] as [number, number, number][];
 
 const TR_DESIGNS: DesignId[] = ["partial-replicate", "full-replicate-2seq", "full-replicate-4seq"];
 
@@ -77,6 +80,13 @@ export default function RandomizationPage() {
   const [mapping, setMapping] = useState<Record<string, TreatmentInfo>>({});
   const [outputMode, setOutputMode] = useState<"blinded" | "unblinded" | "both">("blinded");
   const [strataRaw, setStrataRaw] = useState<string>("");
+  const [treatmentOpen, setTreatmentOpen] = useState<boolean>(false);
+  const treatmentRef = useRef<HTMLDetailsElement>(null);
+
+  function openTreatmentDetails() {
+    setTreatmentOpen(true);
+    setTimeout(() => treatmentRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
+  }
   const [sponsor, setSponsor] = useState<string>("");
   const [protocolVersion, setProtocolVersion] = useState<string>("");
   const [protocolDate, setProtocolDate] = useState<string>("");
@@ -106,6 +116,17 @@ export default function RandomizationPage() {
       previewSeqCount = 0;
     }
   }
+
+  // Balancing unit for block-size validity: sequence count (crossover) or
+  // allocation-ratio sum (parallel). Used to dim invalid block options.
+  const blockUnit = method === "parallel"
+    ? (parseAllocationRatio(allocationRaw, groups.length)?.reduce((a, b) => a + b, 0) ?? groups.length ?? 1)
+    : (previewSeqCount || 1);
+  const blockOptions = BLOCK_OPTIONS.map((b) => ({
+    value: String(b),
+    label: String(b),
+    disabled: n > 0 && (n % b !== 0 || b % blockUnit !== 0),
+  }));
 
   function clearOutput() {
     setResult(null);
@@ -534,20 +555,21 @@ export default function RandomizationPage() {
 
   return (
     <main style={{ position: "relative" }}>
-      <LanguageToggle onChange={onLang} />
-
       <div className="hero">
         <div>
           <p className="eyebrow">{tr(lang, "eyebrow")}</p>
           <h1>{tr(lang, "heading")}</h1>
           <p className="lede">{tr(lang, "lede")}</p>
         </div>
-        <div className="meta">
-          tool 01
-          <br />
-          client-side only
-          <br />
-          {tr(lang, "verified")}
+        <div className="meta" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: ".75rem" }}>
+          <LanguageToggle onChange={onLang} inline />
+          <div>
+            tool 01
+            <br />
+            client-side only
+            <br />
+            {tr(lang, "verified")}
+          </div>
         </div>
       </div>
 
@@ -558,148 +580,162 @@ export default function RandomizationPage() {
         </div>
         <div className="panel-body">
 
-          {/* Method */}
-          <div style={{ marginBottom: "1.5rem" }}>
-            <label>{tr(lang, "method")}</label>
-            <div className="method-toggle">
-              <button className={`method-btn${method === "parallel" ? " active" : ""}`} onClick={() => { setMethod("parallel"); clearOutput(); }}>
-                {tr(lang, "parallel")}
-              </button>
-              <button className={`method-btn${method === "crossover" ? " active" : ""}`} onClick={() => { setMethod("crossover"); clearOutput(); }}>
-                {tr(lang, "crossover")}
-              </button>
+          {/* Group: Design */}
+          <div className="field-group">
+            <div className="field-group-head"><h3>{tr(lang, "grpDesign")}</h3></div>
+            <div style={{ marginBottom: method === "crossover" ? "1rem" : 0 }}>
+              <label>{tr(lang, "method")}</label>
+              <div className="method-toggle">
+                <button className={`method-btn${method === "parallel" ? " active" : ""}`} onClick={() => { setMethod("parallel"); clearOutput(); }}>
+                  {tr(lang, "parallel")}
+                </button>
+                <button className={`method-btn${method === "crossover" ? " active" : ""}`} onClick={() => { setMethod("crossover"); clearOutput(); }}>
+                  {tr(lang, "crossover")}
+                </button>
+              </div>
             </div>
-          </div>
-
-          {/* Crossover design selector */}
-          {method === "crossover" && (
-            <div style={{ marginBottom: "1.5rem" }}>
-              <label>{tr(lang, "design")}</label>
-              <Select
-                value={designId}
-                onChange={(v) => { setDesignId(v as DesignId); clearOutput(); }}
-                placeholder={tr(lang, "selectDesign")}
-                options={DESIGN_ORDER.map((id) => ({ value: id, label: DESIGNS[id].label[lang] }))}
-              />
-              {design && (
-                <p style={{ marginTop: ".4rem", fontSize: ".72rem", color: "var(--muted, #7a7868)", fontFamily: "var(--font-jetbrains-mono)" }}>
-                  {design.note[lang]}
-                  {previewSeqCount > 0 && (
-                    <> {" · "}{tr(lang, "periodsDerived")}: {previewPeriods} · {tr(lang, "seqCount")}: {previewSeqCount}</>
-                  )}
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Parameter grid */}
-          <div className="controls" style={{ alignItems: "flex-start" }}>
-            <div>
-              <label>{tr(lang, "totalVolunteers")}</label>
-              <input
-                type="text"
-                inputMode="numeric"
-                placeholder="e.g. 24"
-                value={nRaw}
-                style={{ fontSize: ".63rem" }}
-                onChange={(e) => {
-                  const raw = e.target.value.replace(/[^0-9]/g, "");
-                  setNRaw(raw);
-                  const num = parseInt(raw);
-                  if (!isNaN(num) && num >= 2 && num <= 2000) setN(num);
-                }}
-                onBlur={() => {
-                  const num = parseInt(nRaw);
-                  if (!isNaN(num) && num >= 2 && num <= 2000) setN(num);
-                }}
-              />
-            </div>
-            <div>
-              <label>{tr(lang, "drugs")}</label>
-              <input
-                type="text"
-                value={groupsRaw}
-                onChange={(e) => setGroupsRaw(e.target.value)}
-                placeholder={isTRDesign ? "T, R" : "A, B"}
-                style={{ width: "100%", fontSize: ".72rem" }}
-              />
-              {isTRDesign && (
-                <p style={{ marginTop: ".3rem", fontSize: ".66rem", color: "var(--muted, #7a7868)", fontFamily: "var(--font-jetbrains-mono)" }}>
-                  {tr(lang, "drugsHintReplicate")}
-                </p>
-              )}
-            </div>
-            <div>
-              <label>{tr(lang, "seed")}</label>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={seedRaw}
-                onChange={(e) => setSeedRaw(e.target.value.replace(/[^0-9]/g, ""))}
-                onBlur={commitSeedFromInput}
-                style={{ width: "100%" }}
-              />
-              <button
-                onClick={generateRandomSeed}
-                style={{ background: "none", border: "none", color: "var(--accent)", fontFamily: "var(--font-jetbrains-mono)", fontSize: ".68rem", textTransform: "uppercase", letterSpacing: ".05em", cursor: "pointer", padding: 0, marginTop: ".35rem" }}
-              >
-                🎲 {tr(lang, "randomize")}
-              </button>
-            </div>
-            <div>
-              <label>{tr(lang, "blockSize")}</label>
-              <Select
-                value={String(blockSize || "")}
-                onChange={(v) => { const num = parseInt(v, 10); if (!isNaN(num)) setBlockSize(num); }}
-                placeholder={tr(lang, "pleaseSelect")}
-                options={[2, 4, 6, 8, 12].map((b) => ({ value: String(b), label: String(b) }))}
-              />
-            </div>
-            {method === "parallel" && (
+            {method === "crossover" && (
               <div>
-                <label>{tr(lang, "allocationRatio")}</label>
-                <input type="text" value={allocationRaw} onChange={(e) => setAllocationRaw(e.target.value)} placeholder="1:1" style={{ width: "100%" }} />
+                <label>{tr(lang, "design")}</label>
+                <Select
+                  value={designId}
+                  onChange={(v) => { setDesignId(v as DesignId); clearOutput(); }}
+                  placeholder={tr(lang, "selectDesign")}
+                  options={DESIGN_ORDER.map((id) => ({ value: id, label: DESIGNS[id].label[lang] }))}
+                />
+                {design && (
+                  <p style={{ marginTop: ".4rem", fontSize: ".72rem", color: "var(--muted, #7a7868)", fontFamily: "var(--font-jetbrains-mono)" }}>
+                    {design.note[lang]}
+                    {previewSeqCount > 0 && (
+                      <> {" · "}{tr(lang, "periodsDerived")}: {previewPeriods} · {tr(lang, "seqCount")}: {previewSeqCount}</>
+                    )}
+                  </p>
+                )}
               </div>
             )}
-            <div>
-              <label>{tr(lang, "studyCode")}</label>
-              <input type="text" value={studyCode} onChange={(e) => setStudyCode(e.target.value)} placeholder="IST-2026-01" style={{ width: "100%", fontSize: ".72rem" }} />
-            </div>
-            <div>
-              <label>{tr(lang, "reserveSubjects")}</label>
-              <input type="text" inputMode="numeric" value={reserveRaw} onChange={(e) => setReserveRaw(e.target.value.replace(/[^0-9]/g, ""))} placeholder="0" style={{ width: "100%" }} />
-            </div>
-            <div>
-              <label>{tr(lang, "sponsor")}</label>
-              <input type="text" value={sponsor} onChange={(e) => setSponsor(e.target.value)} placeholder="CRO Ltd." style={{ width: "100%", fontSize: ".72rem" }} />
-            </div>
-            <div>
-              <label>{tr(lang, "protocolVersion")}</label>
-              <input type="text" value={protocolVersion} onChange={(e) => setProtocolVersion(e.target.value)} placeholder="v1.0" style={{ width: "100%", fontSize: ".72rem" }} />
-            </div>
-            <div>
-              <label>{tr(lang, "protocolDate")}</label>
-              <input type="text" value={protocolDate} onChange={(e) => setProtocolDate(e.target.value)} placeholder="2026-01-15" style={{ width: "100%", fontSize: ".72rem" }} />
+          </div>
+
+          {/* Group: Core randomization */}
+          <div className="field-group">
+            <div className="field-group-head"><h3>{tr(lang, "grpCore")}</h3></div>
+            <div className="field-grid cols-4">
+              <div>
+                <label>{tr(lang, "totalVolunteers")}</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="e.g. 24"
+                  value={nRaw}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/[^0-9]/g, "");
+                    setNRaw(raw);
+                    const num = parseInt(raw);
+                    if (!isNaN(num) && num >= 2 && num <= 2000) setN(num);
+                  }}
+                  onBlur={() => {
+                    const num = parseInt(nRaw);
+                    if (!isNaN(num) && num >= 2 && num <= 2000) setN(num);
+                  }}
+                />
+              </div>
+              <div>
+                <label>{tr(lang, "drugs")}</label>
+                <input
+                  type="text"
+                  value={groupsRaw}
+                  onChange={(e) => setGroupsRaw(e.target.value)}
+                  placeholder={isTRDesign ? "T, R" : "A, B"}
+                />
+                {isTRDesign && (
+                  <p style={{ marginTop: ".3rem", fontSize: ".66rem", color: "var(--muted, #7a7868)", fontFamily: "var(--font-jetbrains-mono)" }}>
+                    {tr(lang, "drugsHintReplicate")}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label>{tr(lang, "seed")}</label>
+                <div className="seed-wrap">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={seedRaw}
+                    onChange={(e) => setSeedRaw(e.target.value.replace(/[^0-9]/g, ""))}
+                    onBlur={commitSeedFromInput}
+                  />
+                  <button className="seed-dice" onClick={generateRandomSeed} title={tr(lang, "randomize")} aria-label={tr(lang, "randomize")}>🎲</button>
+                </div>
+              </div>
+              <div>
+                <label>{tr(lang, "blockSize")}</label>
+                <Select
+                  value={String(blockSize || "")}
+                  onChange={(v) => { const num = parseInt(v, 10); if (!isNaN(num)) setBlockSize(num); }}
+                  placeholder={tr(lang, "pleaseSelect")}
+                  options={blockOptions}
+                />
+              </div>
+              {method === "parallel" && (
+                <div>
+                  <label>{tr(lang, "allocationRatio")}</label>
+                  <input type="text" value={allocationRaw} onChange={(e) => setAllocationRaw(e.target.value)} placeholder="1:1" />
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Stratification */}
-          <div style={{ marginTop: "1.5rem" }}>
-            <label>{tr(lang, "stratification")}</label>
-            <input
-              type="text"
-              value={strataRaw}
-              onChange={(e) => { setStrataRaw(e.target.value); clearOutput(); }}
-              placeholder="Male:12, Female:12"
-              style={{ width: "100%", fontSize: ".72rem" }}
-            />
-            <p style={{ marginTop: ".3rem", fontSize: ".66rem", color: "var(--muted, #7a7868)", fontFamily: "var(--font-jetbrains-mono)" }}>
-              {tr(lang, "stratificationHint")}
-            </p>
+          {/* Group: Audit metadata (optional) */}
+          <div className="field-group optional">
+            <div className="field-group-head">
+              <h3>{tr(lang, "grpAudit")}</h3>
+              <span className="opt">{tr(lang, "optionalTag")}</span>
+            </div>
+            <div className="field-grid cols-4">
+              <div>
+                <label>{tr(lang, "studyCode").replace(/ \(.*\)$/, "")}</label>
+                <input type="text" value={studyCode} onChange={(e) => setStudyCode(e.target.value)} placeholder="IST-2026-01" />
+              </div>
+              <div>
+                <label>{tr(lang, "sponsor")}</label>
+                <input type="text" value={sponsor} onChange={(e) => setSponsor(e.target.value)} placeholder="CRO Ltd." />
+              </div>
+              <div>
+                <label>{tr(lang, "protocolVersion")}</label>
+                <input type="text" value={protocolVersion} onChange={(e) => setProtocolVersion(e.target.value)} placeholder="v1.0" />
+              </div>
+              <div>
+                <label>{tr(lang, "protocolDate")}</label>
+                <input type="text" value={protocolDate} onChange={(e) => setProtocolDate(e.target.value)} placeholder="2026-01-15" />
+              </div>
+            </div>
           </div>
+
+          {/* Group: Numbering & blinding (optional) */}
+          <div className="field-group optional">
+            <div className="field-group-head">
+              <h3>{tr(lang, "grpNumbering")}</h3>
+              <span className="opt">{tr(lang, "optionalTag")}</span>
+            </div>
+            <div className="field-grid cols-2" style={{ marginBottom: "1rem" }}>
+              <div>
+                <label>{tr(lang, "reserveSubjects")}</label>
+                <input type="text" inputMode="numeric" value={reserveRaw} onChange={(e) => setReserveRaw(e.target.value.replace(/[^0-9]/g, ""))} placeholder="0" />
+              </div>
+              <div>
+                <label>{tr(lang, "stratification")}</label>
+                <input
+                  type="text"
+                  value={strataRaw}
+                  onChange={(e) => { setStrataRaw(e.target.value); clearOutput(); }}
+                  placeholder="Male:12, Female:12"
+                />
+                <p style={{ marginTop: ".3rem", fontSize: ".66rem", color: "var(--muted, #7a7868)", fontFamily: "var(--font-jetbrains-mono)" }}>
+                  {tr(lang, "stratificationHint")}
+                </p>
+              </div>
+            </div>
 
           {/* Numbering options */}
-          <details style={{ marginTop: "1rem", border: "1px solid var(--rule, #e8e4d8)", borderRadius: "6px", padding: ".5rem .9rem" }}>
+          <details style={{ border: "1px solid var(--rule, #e8e4d8)", borderRadius: "6px", padding: ".5rem .9rem" }}>
             <summary style={{ cursor: "pointer", fontFamily: "var(--font-jetbrains-mono)", fontSize: ".72rem", textTransform: "uppercase", letterSpacing: ".05em" }}>
               {tr(lang, "optionsTitle")}
             </summary>
@@ -729,7 +765,12 @@ export default function RandomizationPage() {
 
           {/* Treatment details / mapping */}
           {groups.length > 0 && (
-            <details style={{ marginTop: "1rem", border: "1px solid var(--rule, #e8e4d8)", borderRadius: "6px", padding: ".5rem .9rem" }}>
+            <details
+              ref={treatmentRef}
+              open={treatmentOpen}
+              onToggle={(e) => setTreatmentOpen((e.currentTarget as HTMLDetailsElement).open)}
+              style={{ marginTop: "1rem", border: "1px solid var(--rule, #e8e4d8)", borderRadius: "6px", padding: ".5rem .9rem" }}
+            >
               <summary style={{ cursor: "pointer", fontFamily: "var(--font-jetbrains-mono)", fontSize: ".72rem", textTransform: "uppercase", letterSpacing: ".05em" }}>
                 {tr(lang, "treatmentDetailsTitle")}
               </summary>
@@ -778,6 +819,8 @@ export default function RandomizationPage() {
               </div>
             </details>
           )}
+          </div>
+          {/* end Group: Numbering & blinding */}
 
           <div className="btn-row" style={{ flexWrap: "wrap" }}>
             <button className="btn" onClick={generate}>{tr(lang, "generate")}</button>
@@ -869,28 +912,37 @@ export default function RandomizationPage() {
                 </table>
               </div>
 
-              {/* Sealed treatment decode (shown for unblinded / both when roles set) */}
+              {/* Sealed treatment decode preview (unblinded / both modes) */}
               {outputMode !== "blinded" && (
-                <div style={{ marginTop: "1.5rem", border: "1px solid #b8432a", borderRadius: "6px", padding: "1rem 1.25rem", background: "rgba(184,67,42,0.03)" }}>
+                <div style={{ marginTop: "1.5rem", border: "1px solid var(--warn)", borderRadius: "6px", padding: "1rem 1.25rem", background: "var(--warn-soft)" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: ".5rem" }}>
-                    <strong style={{ fontFamily: "var(--font-jetbrains-mono)", textTransform: "uppercase", letterSpacing: ".05em", fontSize: ".7rem", color: "#b8432a" }}>🔒 {tr(lang, "decodeTitle")}</strong>
+                    <strong style={{ fontFamily: "var(--font-jetbrains-mono)", textTransform: "uppercase", letterSpacing: ".05em", fontSize: ".7rem", color: "var(--warn)" }}>🔒 {tr(lang, "decodePreview")}</strong>
                     <span className="tag">{tr(lang, "decodeTag")}</span>
                   </div>
                   <p style={{ margin: "0 0 .6rem", fontSize: ".72rem", color: "var(--muted, #7a7868)", fontFamily: "var(--font-jetbrains-mono)" }}>{tr(lang, "decodeIntro")}</p>
-                  {mappingFilled() ? (
+                  {!mappingFilled() && (
+                    <div style={{ margin: "0 0 .75rem", padding: ".6rem .8rem", border: "1px solid var(--warn)", borderRadius: "4px", fontSize: ".72rem", color: "var(--warn)", fontFamily: "var(--font-jetbrains-mono)" }}>
+                      ⚠ {tr(lang, "decodeMissingRoles")}{" "}
+                      <button onClick={openTreatmentDetails} style={{ background: "none", border: "none", color: "var(--warn)", textDecoration: "underline", cursor: "pointer", fontFamily: "inherit", fontSize: "inherit", padding: 0 }}>
+                        {tr(lang, "openTreatmentDetails")} ↑
+                      </button>
+                    </div>
+                  )}
+                  <div style={{ overflowX: "auto" }}>
                     <table style={{ fontSize: ".75rem" }}>
                       <thead>
                         <tr>{decodeMatrix()[0].map((h, i) => <th key={i} style={{ textAlign: "left" }}>{String(h)}</th>)}</tr>
                       </thead>
                       <tbody>
                         {decodeMatrix().slice(1).map((r, ri) => (
-                          <tr key={ri}>{r.map((c, ci) => <td key={ci} style={ci === 0 ? { fontFamily: "var(--font-jetbrains-mono)", fontWeight: 600, color: GROUP_COLORS_CSS[ri % GROUP_COLORS_CSS.length] } : undefined}>{String(c)}</td>)}</tr>
+                          <tr key={ri}>{r.map((c, ci) => <td key={ci} style={ci === 0 ? { fontFamily: "var(--font-jetbrains-mono)", fontWeight: 600, color: GROUP_COLORS_CSS[ri % GROUP_COLORS_CSS.length] } : undefined}>{String(c) || "—"}</td>)}</tr>
                         ))}
                       </tbody>
                     </table>
-                  ) : (
-                    <p style={{ margin: 0, fontSize: ".72rem", color: "#b8432a" }}>{tr(lang, "decodeSetRoles")}</p>
-                  )}
+                  </div>
+                  <p style={{ margin: ".7rem 0 0", fontSize: ".66rem", color: "var(--muted, #7a7868)", fontFamily: "var(--font-jetbrains-mono)" }}>
+                    {tr(lang, "mSeed")}: {result.meta.seed} · {tr(lang, "mVerification")}: {result.code} · {tr(lang, "sealPdfOnly")}
+                  </p>
                 </div>
               )}
 

@@ -179,6 +179,19 @@ const D: Dict = {
   mProtocol: { en: "Protocol version / date", tr: "Protokol sürümü / tarihi" },
   decodeSheet: { en: "Decode sheet", tr: "Decode belgesi" },
   validBlocksPrefix: { en: "Use", tr: "Kullan:" },
+  // Form group titles
+  grpDesign: { en: "Design", tr: "Tasarım" },
+  grpCore: { en: "Core randomization", tr: "Çekirdek randomizasyon" },
+  grpAudit: { en: "Audit metadata", tr: "Denetim bilgileri" },
+  grpNumbering: { en: "Numbering & blinding", tr: "Numaralandırma & körleme" },
+  optionalTag: { en: "optional", tr: "opsiyonel" },
+  decodeMissingRoles: {
+    en: "Both + Decode is selected but no Test/Reference roles are set — the decode sheet will be empty.",
+    tr: "Both + Decode seçili ancak Test/Referans rolü girilmemiş — decode belgesi boş kalır.",
+  },
+  openTreatmentDetails: { en: "Open Treatment details", tr: "Tedavi künyesini aç" },
+  decodePreview: { en: "Sealed decode sheet (preview)", tr: "Mühürlü decode belgesi (önizleme)" },
+  sealPdfOnly: { en: "Seal / signature fields appear in the PDF only.", tr: "Mühür / imza alanları yalnız PDF'te bulunur." },
   // Faz 3 — PDF signatures
   sigPrepared: { en: "Prepared by", tr: "Hazırlayan" },
   sigChecked: { en: "Checked by", tr: "Kontrol eden" },
