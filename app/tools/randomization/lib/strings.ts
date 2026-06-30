@@ -145,6 +145,40 @@ const D: Dict = {
     en: "Tool v1.0.0 · RNG mulberry32 v1.0. Algorithm and version are stamped on every schedule and export.",
     tr: "Araç v1.0.0 · RNG mulberry32 v1.0. Algoritma ve sürüm her liste ve dışa aktarıma damgalanır.",
   },
+  // BE blinding & audit delivery
+  outputMode: { en: "Output mode", tr: "Çıktı modu" },
+  omBlinded: { en: "Blinded (codes)", tr: "Körlü (kodlar)" },
+  omUnblinded: { en: "Unblinded (Test/Ref)", tr: "Körlemesiz (Test/Ref)" },
+  omBoth: { en: "Both + decode", tr: "İkisi + decode" },
+  omBlindedHint: {
+    en: "Schedule shows neutral treatment codes only; the Test/Reference identity stays sealed in a separate decode sheet.",
+    tr: "Liste yalnız nötr tedavi kodlarını gösterir; Test/Referans kimliği ayrı bir decode belgesinde mühürlü kalır.",
+  },
+  omUnblindedHint: {
+    en: "Test/Reference identity is revealed. Set each code's role in Treatment details below.",
+    tr: "Test/Referans kimliği açığa çıkar. Her kodun rolünü aşağıdaki Tedavi künyesinde ayarlayın.",
+  },
+  omBothHint: {
+    en: "Produces the blinded schedule plus a separate sealed decode sheet — both carry the same seed and verification code.",
+    tr: "Körlü liste artı ayrı bir mühürlü decode belgesi üretir — ikisi de aynı seed ve doğrulama kodunu taşır.",
+  },
+  decodeTitle: { en: "Sealed treatment decode", tr: "Mühürlü tedavi decode" },
+  decodeTag: { en: "keep sealed", tr: "mühürlü tutun" },
+  decodeIntro: {
+    en: "Keep this sheet sealed until the analysis is complete. Once unsealed, no data may be changed or excluded.",
+    tr: "Bu belgeyi analiz bitene kadar mühürlü tutun. Mühür açıldıktan sonra hiçbir veri değiştirilemez veya dışlanamaz.",
+  },
+  decodeSetRoles: {
+    en: "Set Test/Reference roles in Treatment details to populate the decode sheet.",
+    tr: "Decode belgesini doldurmak için Tedavi künyesinde Test/Referans rollerini ayarlayın.",
+  },
+  sponsor: { en: "Sponsor / CRO", tr: "Sponsor / CRO" },
+  protocolVersion: { en: "Protocol version", tr: "Protokol sürümü" },
+  protocolDate: { en: "Protocol date", tr: "Protokol tarihi" },
+  mSponsor: { en: "Sponsor / CRO", tr: "Sponsor / CRO" },
+  mProtocol: { en: "Protocol version / date", tr: "Protokol sürümü / tarihi" },
+  decodeSheet: { en: "Decode sheet", tr: "Decode belgesi" },
+  validBlocksPrefix: { en: "Use", tr: "Kullan:" },
   // Faz 3 — PDF signatures
   sigPrepared: { en: "Prepared by", tr: "Hazırlayan" },
   sigChecked: { en: "Checked by", tr: "Kontrol eden" },

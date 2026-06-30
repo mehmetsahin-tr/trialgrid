@@ -22,7 +22,12 @@ export interface BilingualError {
   tr: string;
   /** Nearest balanced volunteer count, when the error is a divisibility problem. */
   suggestion?: number;
+  /** Valid block sizes for the given N, when the block size leaves an unbalanced tail. */
+  validBlocks?: number[];
 }
+
+/** Block sizes offered in the UI. */
+export const BLOCK_OPTIONS = [2, 4, 6, 8, 12];
 
 export interface Stratum {
   name: string;
@@ -204,6 +209,19 @@ export function generateSchedule(p: GenParams): GenResult {
         `${label.en} (${count}) must be at least the block size (${blockSize}).`,
         `${label.tr} (${count}), blok boyutundan (${blockSize}) küçük olamaz.`
       );
+    if (count % blockSize !== 0) {
+      // The final block would be truncated, breaking sequence balance.
+      const validBlocks = BLOCK_OPTIONS.filter((b) => count % b === 0 && b % unit === 0 && b <= count);
+      const list = validBlocks.join(", ");
+      return {
+        ok: false,
+        error: {
+          en: `${label.en} (${count}) must be divisible by the block size (${blockSize}) for balanced sequences. Valid block sizes for ${count}: ${list}.`,
+          tr: `Dengeli sekanslar için ${label.tr} (${count}), blok boyutuna (${blockSize}) bölünebilmeli. ${count} için geçerli blok boyutları: ${list}.`,
+          validBlocks,
+        },
+      };
+    }
     return null;
   };
 

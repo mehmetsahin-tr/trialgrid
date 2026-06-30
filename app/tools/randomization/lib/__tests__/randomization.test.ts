@@ -250,6 +250,51 @@ test("toCSV escapes commas, quotes and newlines", () => {
   assert.equal(csv, 'a,"b,c","d""e"\r\n"line1\nline2",1,x');
 });
 
+test("BE 2x2: N=40 block=4 yields exactly 20 AB + 20 BA, reproducibly", async () => {
+  const params = {
+    method: "crossover" as const,
+    designId: "2x2x2" as const,
+    drugs: ["A", "B"],
+    n: 40,
+    blockSize: 4,
+    seed: 2024,
+  };
+  const a = generateSchedule(params);
+  const b = generateSchedule(params);
+  assert.ok(a.ok && b.ok);
+  const counts: Record<string, number> = {};
+  for (const r of a.rows) counts[r.sequenceLabel] = (counts[r.sequenceLabel] ?? 0) + 1;
+  assert.deepEqual(counts, { AB: 20, BA: 20 });
+
+  const meta = {
+    studyCode: "NOV2024/02159",
+    method: "crossover",
+    designId: "2x2x2",
+    drugs: ["A", "B"],
+    n: 40,
+    blockSize: 4,
+    seed: 2024,
+    allocation: "balanced",
+  };
+  const ha = await sha256Hex(canonicalString(meta, a.rows));
+  const hb = await sha256Hex(canonicalString(meta, b.rows));
+  assert.equal(ha, hb); // same seed + params -> identical hash
+  assert.equal(verificationCode(ha), "47E7FAE2F92A5CD4");
+});
+
+test("BE 2x2: N=40 with block=6 is blocked with valid block suggestions", () => {
+  const res = generateSchedule({
+    method: "crossover",
+    designId: "2x2x2",
+    drugs: ["A", "B"],
+    n: 40,
+    blockSize: 6,
+    seed: 2024,
+  });
+  assert.ok(!res.ok);
+  assert.deepEqual(res.error.validBlocks, [2, 4, 8]);
+});
+
 test("wrong treatment count for a design is rejected", () => {
   const res = generateSchedule({
     method: "crossover",

@@ -75,10 +75,13 @@ export default function RandomizationPage() {
   const [enrollStartRaw, setEnrollStartRaw] = useState<string>("1");
   const [enrollPad, setEnrollPad] = useState<number>(3);
   const [mapping, setMapping] = useState<Record<string, TreatmentInfo>>({});
-  const [listType, setListType] = useState<"unblinded" | "blinded">("unblinded");
+  const [outputMode, setOutputMode] = useState<"blinded" | "unblinded" | "both">("blinded");
   const [strataRaw, setStrataRaw] = useState<string>("");
+  const [sponsor, setSponsor] = useState<string>("");
+  const [protocolVersion, setProtocolVersion] = useState<string>("");
+  const [protocolDate, setProtocolDate] = useState<string>("");
 
-  const [genError, setGenError] = useState<{ en: string; tr: string; suggestion?: number } | null>(null);
+  const [genError, setGenError] = useState<{ en: string; tr: string; suggestion?: number; validBlocks?: number[] } | null>(null);
   const [result, setResult] = useState<Generated | null>(null);
   const [repro, setRepro] = useState<"idle" | "ok" | "mismatch">("idle");
 
@@ -216,16 +219,27 @@ export default function RandomizationPage() {
   }
 
   // --- derived helpers for output ---
-  const groupCode = (seqLabel: string): string => {
-    const i = result ? result.sequenceLabels.indexOf(seqLabel) : -1;
-    return `G${i + 1}`;
-  };
   const allRows = result ? [...result.rows, ...result.reserveRows] : [];
   const mainWord = lang === "en" ? "Main" : "Esas";
   const setLabel = lang === "en" ? "Set" : "Küme";
 
+  // Treatment code -> role, used to (un)blind. drugs are neutral codes (e.g. A/B);
+  // the role mapping is the seal that the decode sheet reveals.
+  const roleOf = (code: string): TreatmentInfo["role"] => {
+    const idx = groups.indexOf(code);
+    return idx >= 0 ? getInfo(code, idx).role : "";
+  };
+  const roleInitial = (code: string): string => {
+    const role = roleOf(code);
+    return role === "Test" ? "T" : role === "Reference" ? "R" : code;
+  };
+  const roleCell = (code: string): string => {
+    const role = roleOf(code);
+    return role === "Test" ? tr(lang, "tmTest") : role === "Reference" ? tr(lang, "tmReference") : code;
+  };
+
   // --- export matrix builders ---
-  function scheduleMatrix(blinded: boolean): Cell[][] {
+  function scheduleMatrix(unblinded: boolean): Cell[][] {
     if (!result) return [];
     const stratified = result.strata.length > 0;
     const header: Cell[] = ["Randomization No"];
@@ -233,13 +247,10 @@ export default function RandomizationPage() {
     if (stratified) header.push(tr(lang, "stratumCol"));
     header.push(setLabel);
     if (method === "crossover") {
-      if (blinded) header.push(tr(lang, "groupCode"));
-      else {
-        header.push(tr(lang, "seqCol"));
-        for (let i = 0; i < result.periods; i++) header.push(`${tr(lang, "period")} ${i + 1}`);
-      }
+      header.push(tr(lang, "seqCol"));
+      for (let i = 0; i < result.periods; i++) header.push(`${tr(lang, "period")} ${i + 1}`);
     } else {
-      header.push(blinded ? tr(lang, "groupCode") : tr(lang, "treatment"));
+      header.push(tr(lang, "treatment"));
     }
 
     const body: Cell[][] = allRows.map((row) => {
@@ -248,10 +259,11 @@ export default function RandomizationPage() {
       if (stratified) line.push(row.stratum ?? "");
       line.push(row.isReserve ? tr(lang, "reserveTag") : mainWord);
       if (method === "crossover") {
-        if (blinded) line.push(groupCode(row.sequenceLabel));
-        else line.push(row.sequenceLabel, ...row.treatments);
+        const seqLabel = unblinded ? row.treatments.map(roleInitial).join("") : row.sequenceLabel;
+        const cells = unblinded ? row.treatments.map(roleCell) : row.treatments;
+        line.push(seqLabel, ...cells);
       } else {
-        line.push(blinded ? groupCode(row.sequenceLabel) : row.treatments[0]);
+        line.push(unblinded ? roleCell(row.treatments[0]) : row.treatments[0]);
       }
       return line;
     });
@@ -265,19 +277,20 @@ export default function RandomizationPage() {
     });
   }
 
-  function mappingMatrix(): Cell[][] {
+  // Sealed decode sheet: code -> role + product identity.
+  function decodeMatrix(): Cell[][] {
     const header: Cell[] = [
       tr(lang, "tmCode"),
+      tr(lang, "tmFormulation"),
       tr(lang, "tmProduct"),
       tr(lang, "tmSubstance"),
       tr(lang, "tmStrength"),
-      tr(lang, "tmFormulation"),
       tr(lang, "tmBatch"),
     ];
     const body = groups.map((g, idx) => {
       const info = getInfo(g, idx);
       const role = info.role === "Test" ? tr(lang, "tmTest") : info.role === "Reference" ? tr(lang, "tmReference") : "";
-      return [g, info.product, info.substance, info.strength, role, info.batch];
+      return [g, role, info.product, info.substance, info.strength, info.batch];
     });
     return [header, ...body];
   }
@@ -287,12 +300,16 @@ export default function RandomizationPage() {
     const seqCount = result.sequenceLabels.length;
     const rows: Cell[][] = [];
     if (result.meta.studyCode) rows.push([tr(lang, "studyCode").replace(/ \(.*\)$/, ""), result.meta.studyCode]);
+    if (sponsor.trim()) rows.push([tr(lang, "mSponsor"), sponsor.trim()]);
+    if (protocolVersion.trim() || protocolDate.trim())
+      rows.push([tr(lang, "mProtocol"), [protocolVersion.trim(), protocolDate.trim()].filter(Boolean).join(" · ")]);
     rows.push([tr(lang, "mDesign"), method === "parallel" ? tr(lang, "parallel") : design?.label[lang] ?? designId]);
     rows.push([tr(lang, "mTreatments"), `${groups.join(", ")} (${groups.length})`]);
     rows.push([tr(lang, "mSequences"), `${result.sequenceLabels.join(", ")} (${seqCount})`]);
+    const seqCounts = result.sequenceLabels.map((s) => result.rows.filter((row) => row.sequenceLabel === s).length);
     rows.push([
       method === "parallel" ? tr(lang, "allocationRatio") : tr(lang, "mPerSeq"),
-      method === "parallel" ? result.meta.allocation : String(n / seqCount),
+      method === "parallel" ? result.meta.allocation : seqCounts.join(" / "),
     ]);
     if (result.reserveRows.length) rows.push([tr(lang, "reserveSubjects"), String(result.reserveRows.length)]);
     if (result.strata.length) rows.push([tr(lang, "mStratification"), result.strata.join(", ")]);
@@ -305,15 +322,19 @@ export default function RandomizationPage() {
     return rows;
   }
 
+  // Whether the on-screen / primary schedule reveals Test/Reference identity.
+  const showDecode = outputMode !== "blinded" && mappingFilled();
+
   function exportCSV() {
     if (!result) {
       alert(tr(lang, "selectMethodFirst"));
       return;
     }
-    const comments = auditMatrix()
-      .map(([k, v]) => `# ${k}: ${v}`)
-      .join("\r\n");
-    const csv = `${comments}\r\n\r\n${toCSV(scheduleMatrix(listType === "blinded"))}\r\n`;
+    const comments = auditMatrix().map(([k, v]) => `# ${k}: ${v}`).join("\r\n");
+    let csv = `${comments}\r\n\r\n${toCSV(scheduleMatrix(outputMode === "unblinded"))}\r\n`;
+    if (showDecode) {
+      csv += `\r\n# ${tr(lang, "decodeTitle")} — ${tr(lang, "decodeIntro")}\r\n${toCSV(decodeMatrix())}\r\n`;
+    }
     download(`randomization_${result.code}.csv`, "text/csv;charset=utf-8", "﻿" + csv);
   }
 
@@ -322,8 +343,8 @@ export default function RandomizationPage() {
       alert(tr(lang, "selectMethodFirst"));
       return;
     }
-    const sheets = [{ name: tr(lang, "schedule"), rows: scheduleMatrix(listType === "blinded") }];
-    if (mappingFilled()) sheets.push({ name: tr(lang, "treatmentMapSheet"), rows: mappingMatrix() });
+    const sheets = [{ name: tr(lang, "schedule"), rows: scheduleMatrix(outputMode === "unblinded") }];
+    if (showDecode) sheets.push({ name: tr(lang, "decodeSheet"), rows: decodeMatrix() });
     sheets.push({ name: tr(lang, "auditSheet"), rows: auditMatrix() });
     const bytes = buildXlsx(sheets);
     download(
@@ -338,49 +359,20 @@ export default function RandomizationPage() {
       alert(tr(lang, "selectMethodFirst"));
       return;
     }
-    const blinded = listType === "blinded";
-    const matrix = scheduleMatrix(blinded);
-    const head = matrix[0] as string[];
-    const body = matrix.slice(1) as string[][];
-
     const { default: jsPDF } = await import("jspdf");
     const { default: autoTable } = await import("jspdf-autotable");
     const doc = new jsPDF();
 
-    doc.setFont("times", "bold");
-    doc.setFontSize(14);
-    doc.text(`Randomization Schedule${blinded ? " (Blinded)" : ""}`, 14, 18);
-    doc.setFont("courier", "normal");
-    doc.setFontSize(8);
-    doc.text(
-      `${method.toUpperCase()}${design ? " · " + design.label.en : ""} · DRUGS: ${groups.join(", ")} · N=${n}`,
-      14,
-      26
-    );
-
-    autoTable(doc, {
-      head: [head],
-      body,
-      startY: 32,
-      styles: { font: "courier", fontSize: 8, cellPadding: 2, textColor: [20, 20, 20], fillColor: [255, 255, 255] },
-      headStyles: { fillColor: [235, 235, 230], textColor: [20, 20, 20], fontStyle: "bold" },
-      alternateRowStyles: { fillColor: [248, 247, 244] },
-      tableLineColor: [180, 178, 170],
-      tableLineWidth: 0.2,
-      didParseCell(data) {
-        if (data.column.index > 0) data.cell.styles.halign = "center";
-        if (data.section === "body" && !blinded) {
-          const idx = groups.indexOf(String(data.cell.raw));
-          if (idx >= 0) {
-            data.cell.styles.textColor = GROUP_COLORS_PDF[idx % GROUP_COLORS_PDF.length];
-            data.cell.styles.fontStyle = "bold";
-          }
-        }
-      },
+    // code/role -> brand colour, so cells are coloured in both blinded and unblinded views.
+    const cellColor: Record<string, [number, number, number]> = {};
+    groups.forEach((g, idx) => {
+      const c = GROUP_COLORS_PDF[idx % GROUP_COLORS_PDF.length];
+      cellColor[g] = c;
+      cellColor[roleCell(g)] = c;
     });
 
-    let y = ((doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 100) + 12;
-    const writeLines = (lines: string[]) => {
+    const writeLines = (lines: string[], startY: number): number => {
+      let y = startY;
       doc.setFont("courier", "normal");
       doc.setFontSize(8);
       doc.setTextColor(100, 100, 100);
@@ -390,24 +382,106 @@ export default function RandomizationPage() {
         y += 5;
       }
       doc.setTextColor(0, 0, 0);
+      return y;
     };
 
-    if (mappingFilled()) {
-      writeLines(["— Treatment map —", ...mappingMatrix().slice(1).map((r) => r.join("  ·  "))]);
-      y += 3;
-    }
-    writeLines(["— Audit & reproducibility —", ...auditMatrix().map(([k, v]) => `${k}: ${v}`)]);
+    // Audit header block printed at the top of every document.
+    const renderHeader = (title: string, subtitle: string): number => {
+      doc.setFont("times", "bold");
+      doc.setFontSize(14);
+      doc.text(title, 14, 18);
+      doc.setFont("courier", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(20, 20, 20);
+      doc.text(subtitle, 14, 25);
+      let y = 32;
+      doc.setTextColor(90, 90, 90);
+      doc.setFontSize(7.5);
+      doc.text("— Audit header —", 14, y);
+      y += 4.5;
+      for (const [k, v] of auditMatrix()) {
+        doc.text(`${k}: ${v}`, 14, y);
+        y += 4.2;
+      }
+      doc.setTextColor(0, 0, 0);
+      return y + 4;
+    };
 
-    y += 4;
-    const sigDate = tr(lang, "sigDate");
-    writeLines([
-      "— Signatures —",
-      `${tr(lang, "sigPrepared")}: ______________________    ${sigDate}: ____________`,
-      "",
-      `${tr(lang, "sigChecked")}: ______________________    ${sigDate}: ____________`,
-      "",
-      `${tr(lang, "sigApproved")}: ______________________    ${sigDate}: ____________`,
-    ]);
+    const codesSubtitle = `${method.toUpperCase()}${design ? " · " + design.label.en : ""} · CODES: ${groups.join(", ")} · N=${n}`;
+
+    const renderSchedulePage = (unblinded: boolean, title: string) => {
+      const startY = renderHeader(title, codesSubtitle);
+      const matrix = scheduleMatrix(unblinded);
+      autoTable(doc, {
+        head: [matrix[0] as string[]],
+        body: matrix.slice(1) as string[][],
+        startY,
+        styles: { font: "courier", fontSize: 8, cellPadding: 2, textColor: [20, 20, 20], fillColor: [255, 255, 255] },
+        headStyles: { fillColor: [235, 235, 230], textColor: [20, 20, 20], fontStyle: "bold" },
+        alternateRowStyles: { fillColor: [248, 247, 244] },
+        tableLineColor: [180, 178, 170],
+        tableLineWidth: 0.2,
+        didParseCell(data) {
+          if (data.column.index > 0) data.cell.styles.halign = "center";
+          if (data.section === "body") {
+            const c = cellColor[String(data.cell.raw)];
+            if (c) {
+              data.cell.styles.textColor = c;
+              data.cell.styles.fontStyle = "bold";
+            }
+          }
+        },
+      });
+      let y = ((doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 100) + 12;
+      const sigDate = tr(lang, "sigDate");
+      y = writeLines(
+        [
+          "— Signatures —",
+          `${tr(lang, "sigPrepared")}: ______________________    ${sigDate}: ____________`,
+          "",
+          `${tr(lang, "sigChecked")}: ______________________    ${sigDate}: ____________`,
+          "",
+          `${tr(lang, "sigApproved")}: ______________________    ${sigDate}: ____________`,
+        ],
+        y
+      );
+    };
+
+    const renderDecodePage = () => {
+      doc.addPage();
+      const startY = renderHeader("Sealed Treatment Decode Sheet", tr(lang, "decodeIntro"));
+      const matrix = decodeMatrix();
+      autoTable(doc, {
+        head: [matrix[0] as string[]],
+        body: matrix.slice(1) as string[][],
+        startY,
+        styles: { font: "courier", fontSize: 8, cellPadding: 2, textColor: [20, 20, 20], fillColor: [255, 255, 255] },
+        headStyles: { fillColor: [235, 235, 230], textColor: [20, 20, 20], fontStyle: "bold" },
+        alternateRowStyles: { fillColor: [248, 247, 244] },
+        tableLineColor: [180, 178, 170],
+        tableLineWidth: 0.2,
+      });
+      let y = ((doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 100) + 12;
+      const sigDate = tr(lang, "sigDate");
+      y = writeLines(
+        [
+          `${tr(lang, "sigPrepared")}: ______________________    ${sigDate}: ____________`,
+          "",
+          `${tr(lang, "sigSignature")} / Seal: ______________________________________`,
+        ],
+        y
+      );
+    };
+
+    if (outputMode === "both") {
+      renderSchedulePage(false, "Blinded Randomization Schedule");
+      renderDecodePage();
+    } else if (outputMode === "unblinded") {
+      renderSchedulePage(true, "Randomization Schedule (Unblinded)");
+      if (mappingFilled()) renderDecodePage();
+    } else {
+      renderSchedulePage(false, "Blinded Randomization Schedule");
+    }
 
     const totalPages = doc.getNumberOfPages();
     for (let p = 1; p <= totalPages; p++) {
@@ -437,8 +511,8 @@ export default function RandomizationPage() {
   }
   const balance = balanceData();
 
-  const showSeqCol = method === "crossover" && !!result && listType === "unblinded";
-  const showGroupCol = !!result && listType === "blinded";
+  const unblindedView = outputMode === "unblinded";
+  const showSeqCol = method === "crossover" && !!result;
   const stratified = !!result && result.strata.length > 0;
   const groupIndex = (val: string) => groups.indexOf(val);
 
@@ -593,6 +667,18 @@ export default function RandomizationPage() {
               <label>{tr(lang, "reserveSubjects")}</label>
               <input type="text" inputMode="numeric" value={reserveRaw} onChange={(e) => setReserveRaw(e.target.value.replace(/[^0-9]/g, ""))} placeholder="0" style={{ width: "100%" }} />
             </div>
+            <div>
+              <label>{tr(lang, "sponsor")}</label>
+              <input type="text" value={sponsor} onChange={(e) => setSponsor(e.target.value)} placeholder="CRO Ltd." style={{ width: "100%", fontSize: ".72rem" }} />
+            </div>
+            <div>
+              <label>{tr(lang, "protocolVersion")}</label>
+              <input type="text" value={protocolVersion} onChange={(e) => setProtocolVersion(e.target.value)} placeholder="v1.0" style={{ width: "100%", fontSize: ".72rem" }} />
+            </div>
+            <div>
+              <label>{tr(lang, "protocolDate")}</label>
+              <input type="text" value={protocolDate} onChange={(e) => setProtocolDate(e.target.value)} placeholder="2026-01-15" style={{ width: "100%", fontSize: ".72rem" }} />
+            </div>
           </div>
 
           {/* Stratification */}
@@ -712,21 +798,38 @@ export default function RandomizationPage() {
                   </button>
                 </>
               )}
+              {genError.validBlocks && genError.validBlocks.length > 0 && (
+                <div style={{ marginTop: ".4rem" }}>
+                  {tr(lang, "validBlocksPrefix")}{" "}
+                  {genError.validBlocks.map((b, i) => (
+                    <span key={b}>
+                      {i > 0 && ", "}
+                      <button
+                        onClick={() => setBlockSize(b)}
+                        style={{ background: "none", border: "none", color: "#c85a40", textDecoration: "underline", cursor: "pointer", fontFamily: "inherit", fontSize: "inherit", padding: 0 }}
+                      >
+                        {b}
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
           {result && (
             <>
-              {/* List type toggle */}
+              {/* Output mode selector */}
               <div style={{ marginTop: "1.5rem", marginBottom: ".75rem" }}>
-                <label>{tr(lang, "listType")}</label>
-                <div className="method-toggle" style={{ maxWidth: "320px" }}>
-                  <button className={`method-btn${listType === "unblinded" ? " active" : ""}`} onClick={() => setListType("unblinded")}>{tr(lang, "unblinded")}</button>
-                  <button className={`method-btn${listType === "blinded" ? " active" : ""}`} onClick={() => setListType("blinded")}>{tr(lang, "blinded")}</button>
+                <label>{tr(lang, "outputMode")}</label>
+                <div className="method-toggle" style={{ maxWidth: "440px" }}>
+                  <button className={`method-btn${outputMode === "blinded" ? " active" : ""}`} onClick={() => setOutputMode("blinded")}>{tr(lang, "omBlinded")}</button>
+                  <button className={`method-btn${outputMode === "unblinded" ? " active" : ""}`} onClick={() => setOutputMode("unblinded")}>{tr(lang, "omUnblinded")}</button>
+                  <button className={`method-btn${outputMode === "both" ? " active" : ""}`} onClick={() => setOutputMode("both")}>{tr(lang, "omBoth")}</button>
                 </div>
-                {listType === "blinded" && (
-                  <p style={{ marginTop: ".4rem", fontSize: ".7rem", color: "var(--muted, #7a7868)", fontFamily: "var(--font-jetbrains-mono)" }}>{tr(lang, "blindedHint")}</p>
-                )}
+                <p style={{ marginTop: ".4rem", fontSize: ".7rem", color: "var(--muted, #7a7868)", fontFamily: "var(--font-jetbrains-mono)" }}>
+                  {tr(lang, outputMode === "blinded" ? "omBlindedHint" : outputMode === "unblinded" ? "omUnblindedHint" : "omBothHint")}
+                </p>
               </div>
 
               <div className="result">
@@ -737,31 +840,57 @@ export default function RandomizationPage() {
                       {enrollEnabled && <th>{tr(lang, "enrollCol")}</th>}
                       {stratified && <th>{tr(lang, "stratumCol")}</th>}
                       <th style={{ textAlign: "center" }}>{setLabel}</th>
-                      {showGroupCol && <th style={{ textAlign: "center" }}>{tr(lang, "groupCode")}</th>}
                       {showSeqCol && <th style={{ textAlign: "center" }}>{tr(lang, "seqCol")}</th>}
-                      {listType === "unblinded" && (method === "crossover"
+                      {method === "crossover"
                         ? Array.from({ length: result.periods }, (_, i) => <th key={i} style={{ textAlign: "center" }}>{`${tr(lang, "period")} ${i + 1}`}</th>)
-                        : <th style={{ textAlign: "center" }}>{tr(lang, "treatment")}</th>)}
+                        : <th style={{ textAlign: "center" }}>{tr(lang, "treatment")}</th>}
                     </tr>
                   </thead>
                   <tbody>
-                    {allRows.map((row) => (
-                      <tr key={(row.isReserve ? "r" : "m") + row.subjectId} style={row.isReserve ? { background: "rgba(184,67,42,0.04)" } : undefined}>
-                        <td style={row.isReserve ? { fontStyle: "italic" } : undefined}>{row.subjectId}</td>
-                        {enrollEnabled && <td>{row.enrollNo ?? ""}</td>}
-                        {stratified && <td style={{ fontSize: ".7rem" }}>{row.stratum ?? ""}</td>}
-                        <td style={{ textAlign: "center", fontSize: ".68rem", color: "var(--muted, #7a7868)" }}>{row.isReserve ? tr(lang, "reserveTag") : mainWord}</td>
-                        {showGroupCol && <td style={{ textAlign: "center", fontFamily: "var(--font-jetbrains-mono)", fontWeight: 600 }}>{groupCode(row.sequenceLabel)}</td>}
-                        {showSeqCol && <td style={{ textAlign: "center", fontFamily: "var(--font-jetbrains-mono)", fontWeight: 600 }}>{row.sequenceLabel}</td>}
-                        {listType === "unblinded" && row.treatments.map((t, i) => {
-                          const idx = groupIndex(t);
-                          return <td key={i} style={{ color: GROUP_COLORS_CSS[idx % GROUP_COLORS_CSS.length], fontWeight: 500, textAlign: "center" }}>{t}</td>;
-                        })}
-                      </tr>
-                    ))}
+                    {allRows.map((row) => {
+                      const seqText = unblindedView ? row.treatments.map(roleInitial).join("") : row.sequenceLabel;
+                      return (
+                        <tr key={(row.isReserve ? "r" : "m") + row.subjectId} style={row.isReserve ? { background: "rgba(184,67,42,0.04)" } : undefined}>
+                          <td style={row.isReserve ? { fontStyle: "italic" } : undefined}>{row.subjectId}</td>
+                          {enrollEnabled && <td>{row.enrollNo ?? ""}</td>}
+                          {stratified && <td style={{ fontSize: ".7rem" }}>{row.stratum ?? ""}</td>}
+                          <td style={{ textAlign: "center", fontSize: ".68rem", color: "var(--muted, #7a7868)" }}>{row.isReserve ? tr(lang, "reserveTag") : mainWord}</td>
+                          {showSeqCol && <td style={{ textAlign: "center", fontFamily: "var(--font-jetbrains-mono)", fontWeight: 600 }}>{seqText}</td>}
+                          {row.treatments.map((t, i) => {
+                            const idx = groupIndex(t);
+                            return <td key={i} style={{ color: GROUP_COLORS_CSS[idx % GROUP_COLORS_CSS.length], fontWeight: 500, textAlign: "center" }}>{unblindedView ? roleCell(t) : t}</td>;
+                          })}
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
+
+              {/* Sealed treatment decode (shown for unblinded / both when roles set) */}
+              {outputMode !== "blinded" && (
+                <div style={{ marginTop: "1.5rem", border: "1px solid #b8432a", borderRadius: "6px", padding: "1rem 1.25rem", background: "rgba(184,67,42,0.03)" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: ".5rem" }}>
+                    <strong style={{ fontFamily: "var(--font-jetbrains-mono)", textTransform: "uppercase", letterSpacing: ".05em", fontSize: ".7rem", color: "#b8432a" }}>🔒 {tr(lang, "decodeTitle")}</strong>
+                    <span className="tag">{tr(lang, "decodeTag")}</span>
+                  </div>
+                  <p style={{ margin: "0 0 .6rem", fontSize: ".72rem", color: "var(--muted, #7a7868)", fontFamily: "var(--font-jetbrains-mono)" }}>{tr(lang, "decodeIntro")}</p>
+                  {mappingFilled() ? (
+                    <table style={{ fontSize: ".75rem" }}>
+                      <thead>
+                        <tr>{decodeMatrix()[0].map((h, i) => <th key={i} style={{ textAlign: "left" }}>{String(h)}</th>)}</tr>
+                      </thead>
+                      <tbody>
+                        {decodeMatrix().slice(1).map((r, ri) => (
+                          <tr key={ri}>{r.map((c, ci) => <td key={ci} style={ci === 0 ? { fontFamily: "var(--font-jetbrains-mono)", fontWeight: 600, color: GROUP_COLORS_CSS[ri % GROUP_COLORS_CSS.length] } : undefined}>{String(c)}</td>)}</tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <p style={{ margin: 0, fontSize: ".72rem", color: "#b8432a" }}>{tr(lang, "decodeSetRoles")}</p>
+                  )}
+                </div>
+              )}
 
               {/* Balance summary */}
               {balance && (
@@ -776,24 +905,22 @@ export default function RandomizationPage() {
                     <table style={{ fontSize: ".75rem" }}>
                       <thead>
                         <tr>
-                          {showGroupCol && <th style={{ textAlign: "left" }}>{tr(lang, "bGroup")}</th>}
                           <th style={{ textAlign: "left" }}>{tr(lang, "bSequence")}</th>
                           <th style={{ textAlign: "right" }}>{tr(lang, "bN")}</th>
                           {result.reserveRows.length > 0 && <th style={{ textAlign: "right" }}>{tr(lang, "bReserve")}</th>}
                         </tr>
                       </thead>
                       <tbody>
-                        {result.sequenceLabels.map((s, i) => (
+                        {result.sequenceLabels.map((s) => (
                           <tr key={s}>
-                            {showGroupCol && <td style={{ fontFamily: "var(--font-jetbrains-mono)" }}>{`G${i + 1}`}</td>}
-                            <td style={{ fontFamily: "var(--font-jetbrains-mono)" }}>{listType === "blinded" ? `G${i + 1}` : s}</td>
+                            <td style={{ fontFamily: "var(--font-jetbrains-mono)" }}>{unblindedView ? s.split("").map(roleInitial).join("") : s}</td>
                             <td style={{ textAlign: "right" }}>{balance.seqCounts[s] ?? 0}</td>
                             {result.reserveRows.length > 0 && <td style={{ textAlign: "right" }}>{balance.reserveCounts[s] ?? 0}</td>}
                           </tr>
                         ))}
                       </tbody>
                     </table>
-                    {method === "crossover" && listType === "unblinded" && (
+                    {method === "crossover" && (
                       <div>
                         <div style={{ fontSize: ".68rem", color: "var(--muted, #7a7868)", marginBottom: ".35rem", fontFamily: "var(--font-jetbrains-mono)" }}>{tr(lang, "bPerPeriod")}</div>
                         <table style={{ fontSize: ".75rem" }}>
