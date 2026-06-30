@@ -7,7 +7,7 @@ import { RNG_ALGO, RNG_VERSION } from "./lib/rng";
 import { DESIGNS, DESIGN_ORDER, designPeriods } from "./lib/designs";
 import type { DesignId } from "./lib/designs";
 import { generateSchedule } from "./lib/generate";
-import type { GenRow, Method } from "./lib/generate";
+import type { GenRow, Method, Stratum } from "./lib/generate";
 import { canonicalString, sha256Hex, verificationCode } from "./lib/hash";
 import type { AuditMeta } from "./lib/hash";
 import { TOOL_VERSION, TOOL_NAME } from "./lib/meta";
@@ -45,6 +45,7 @@ interface Generated {
   sequenceLabels: string[];
   periods: number;
   varianceBalanced: boolean;
+  strata: string[];
   meta: AuditMeta;
   generatedAt: string;
   hash: string;
@@ -75,6 +76,7 @@ export default function RandomizationPage() {
   const [enrollPad, setEnrollPad] = useState<number>(3);
   const [mapping, setMapping] = useState<Record<string, TreatmentInfo>>({});
   const [listType, setListType] = useState<"unblinded" | "blinded">("unblinded");
+  const [strataRaw, setStrataRaw] = useState<string>("");
 
   const [genError, setGenError] = useState<{ en: string; tr: string; suggestion?: number } | null>(null);
   const [result, setResult] = useState<Generated | null>(null);
@@ -132,6 +134,16 @@ export default function RandomizationPage() {
     setMapping((m) => ({ ...m, [g]: { ...getInfo(g, idx), ...patch } }));
   }
 
+  function parseStrata(): Stratum[] {
+    return strataRaw
+      .split(",")
+      .map((tok) => {
+        const [name, cnt] = tok.split(":");
+        return { name: (name ?? "").trim(), n: parseInt((cnt ?? "").trim(), 10) || 0 };
+      })
+      .filter((s) => s.name && s.n > 0);
+  }
+
   function buildParams() {
     return {
       method,
@@ -142,6 +154,7 @@ export default function RandomizationPage() {
       designId: method === "crossover" ? (designId || undefined) : undefined,
       allocationRatio: method === "parallel" ? allocationRaw : undefined,
       reserve: parseInt(reserveRaw, 10) || 0,
+      strata: parseStrata(),
       randPrefix,
       randStart: parseInt(randStartRaw, 10) || 1,
       randPad,
@@ -183,6 +196,7 @@ export default function RandomizationPage() {
       sequenceLabels: res.sequenceLabels,
       periods: res.periods,
       varianceBalanced: res.varianceBalanced,
+      strata: res.strata,
       meta,
       generatedAt: new Date().toISOString(),
       hash,
@@ -213,8 +227,10 @@ export default function RandomizationPage() {
   // --- export matrix builders ---
   function scheduleMatrix(blinded: boolean): Cell[][] {
     if (!result) return [];
+    const stratified = result.strata.length > 0;
     const header: Cell[] = ["Randomization No"];
     if (enrollEnabled) header.push(tr(lang, "enrollCol"));
+    if (stratified) header.push(tr(lang, "stratumCol"));
     header.push(setLabel);
     if (method === "crossover") {
       if (blinded) header.push(tr(lang, "groupCode"));
@@ -229,6 +245,7 @@ export default function RandomizationPage() {
     const body: Cell[][] = allRows.map((row) => {
       const line: Cell[] = [row.subjectId];
       if (enrollEnabled) line.push(row.enrollNo ?? "");
+      if (stratified) line.push(row.stratum ?? "");
       line.push(row.isReserve ? tr(lang, "reserveTag") : mainWord);
       if (method === "crossover") {
         if (blinded) line.push(groupCode(row.sequenceLabel));
@@ -278,6 +295,7 @@ export default function RandomizationPage() {
       method === "parallel" ? result.meta.allocation : String(n / seqCount),
     ]);
     if (result.reserveRows.length) rows.push([tr(lang, "reserveSubjects"), String(result.reserveRows.length)]);
+    if (result.strata.length) rows.push([tr(lang, "mStratification"), result.strata.join(", ")]);
     rows.push([tr(lang, "mBlock"), String(result.meta.blockSize)]);
     rows.push([tr(lang, "mSeed"), String(result.meta.seed)]);
     rows.push([tr(lang, "mAlgo"), `${RNG_ALGO} v${RNG_VERSION}`]);
@@ -380,6 +398,17 @@ export default function RandomizationPage() {
     }
     writeLines(["— Audit & reproducibility —", ...auditMatrix().map(([k, v]) => `${k}: ${v}`)]);
 
+    y += 4;
+    const sigDate = tr(lang, "sigDate");
+    writeLines([
+      "— Signatures —",
+      `${tr(lang, "sigPrepared")}: ______________________    ${sigDate}: ____________`,
+      "",
+      `${tr(lang, "sigChecked")}: ______________________    ${sigDate}: ____________`,
+      "",
+      `${tr(lang, "sigApproved")}: ______________________    ${sigDate}: ____________`,
+    ]);
+
     const totalPages = doc.getNumberOfPages();
     for (let p = 1; p <= totalPages; p++) {
       doc.setPage(p);
@@ -410,6 +439,7 @@ export default function RandomizationPage() {
 
   const showSeqCol = method === "crossover" && !!result && listType === "unblinded";
   const showGroupCol = !!result && listType === "blinded";
+  const stratified = !!result && result.strata.length > 0;
   const groupIndex = (val: string) => groups.indexOf(val);
 
   const numInput = (label: string, value: string, onChange: (v: string) => void, width = "100%", placeholder = "") => (
@@ -565,8 +595,23 @@ export default function RandomizationPage() {
             </div>
           </div>
 
+          {/* Stratification */}
+          <div style={{ marginTop: "1.5rem" }}>
+            <label>{tr(lang, "stratification")}</label>
+            <input
+              type="text"
+              value={strataRaw}
+              onChange={(e) => { setStrataRaw(e.target.value); clearOutput(); }}
+              placeholder="Male:12, Female:12"
+              style={{ width: "100%", fontSize: ".72rem" }}
+            />
+            <p style={{ marginTop: ".3rem", fontSize: ".66rem", color: "var(--muted, #7a7868)", fontFamily: "var(--font-jetbrains-mono)" }}>
+              {tr(lang, "stratificationHint")}
+            </p>
+          </div>
+
           {/* Numbering options */}
-          <details style={{ marginTop: "1.5rem", border: "1px solid var(--rule, #e8e4d8)", borderRadius: "6px", padding: ".5rem .9rem" }}>
+          <details style={{ marginTop: "1rem", border: "1px solid var(--rule, #e8e4d8)", borderRadius: "6px", padding: ".5rem .9rem" }}>
             <summary style={{ cursor: "pointer", fontFamily: "var(--font-jetbrains-mono)", fontSize: ".72rem", textTransform: "uppercase", letterSpacing: ".05em" }}>
               {tr(lang, "optionsTitle")}
             </summary>
@@ -690,6 +735,7 @@ export default function RandomizationPage() {
                     <tr>
                       <th>{tr(lang, "idCol")}</th>
                       {enrollEnabled && <th>{tr(lang, "enrollCol")}</th>}
+                      {stratified && <th>{tr(lang, "stratumCol")}</th>}
                       <th style={{ textAlign: "center" }}>{setLabel}</th>
                       {showGroupCol && <th style={{ textAlign: "center" }}>{tr(lang, "groupCode")}</th>}
                       {showSeqCol && <th style={{ textAlign: "center" }}>{tr(lang, "seqCol")}</th>}
@@ -703,6 +749,7 @@ export default function RandomizationPage() {
                       <tr key={(row.isReserve ? "r" : "m") + row.subjectId} style={row.isReserve ? { background: "rgba(184,67,42,0.04)" } : undefined}>
                         <td style={row.isReserve ? { fontStyle: "italic" } : undefined}>{row.subjectId}</td>
                         {enrollEnabled && <td>{row.enrollNo ?? ""}</td>}
+                        {stratified && <td style={{ fontSize: ".7rem" }}>{row.stratum ?? ""}</td>}
                         <td style={{ textAlign: "center", fontSize: ".68rem", color: "var(--muted, #7a7868)" }}>{row.isReserve ? tr(lang, "reserveTag") : mainWord}</td>
                         {showGroupCol && <td style={{ textAlign: "center", fontFamily: "var(--font-jetbrains-mono)", fontWeight: 600 }}>{groupCode(row.sequenceLabel)}</td>}
                         {showSeqCol && <td style={{ textAlign: "center", fontFamily: "var(--font-jetbrains-mono)", fontWeight: 600 }}>{row.sequenceLabel}</td>}
@@ -792,6 +839,30 @@ export default function RandomizationPage() {
               </div>
             </>
           )}
+        </div>
+      </div>
+
+      {/* Methodology & validation (static reference) */}
+      <div className="panel" style={{ marginTop: "2rem" }}>
+        <div className="panel-head">
+          <h2>{tr(lang, "methTitle")}</h2>
+          <span className="tag">{tr(lang, "methTag")}</span>
+        </div>
+        <div className="panel-body">
+          {([
+            ["methAlgoH", "methAlgoP"],
+            ["methBalanceH", "methBalanceP"],
+            ["methKatH", "methKatP"],
+            ["methReproH", "methReproP"],
+            ["methVersionH", "methVersionP"],
+          ] as const).map(([h, p]) => (
+            <div key={h} style={{ marginBottom: "1.25rem" }}>
+              <h3 style={{ fontFamily: "var(--font-jetbrains-mono)", textTransform: "uppercase", letterSpacing: ".05em", fontSize: ".72rem", margin: "0 0 .4rem" }}>
+                {tr(lang, h)}
+              </h3>
+              <p style={{ margin: 0, fontSize: ".82rem", lineHeight: 1.6, color: "var(--ink, #2a2722)" }}>{tr(lang, p)}</p>
+            </div>
+          ))}
         </div>
       </div>
     </main>

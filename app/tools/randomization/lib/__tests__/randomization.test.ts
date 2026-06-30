@@ -49,7 +49,44 @@ test("2x2x2 schedule is reproducible (known answer + verification code)", async 
     allocation: "balanced",
   };
   const code = verificationCode(await sha256Hex(canonicalString(meta, res.rows)));
-  assert.equal(code, "2B047F72E1B301D1");
+  assert.equal(code, "DA0579E4E3016ECC");
+});
+
+test("stratified randomization balances within each stratum", () => {
+  const res = generateSchedule({
+    method: "crossover",
+    designId: "2x2x2",
+    drugs: ["T", "R"],
+    n: 0,
+    blockSize: 4,
+    seed: 5,
+    strata: [{ name: "Male", n: 8 }, { name: "Female", n: 8 }],
+  });
+  assert.ok(res.ok);
+  assert.equal(res.rows.length, 16);
+  assert.deepEqual(res.strata, ["Male", "Female"]);
+  const counts: Record<string, Record<string, number>> = {};
+  for (const row of res.rows) {
+    const s = row.stratum as string;
+    counts[s] = counts[s] ?? {};
+    counts[s][row.sequenceLabel] = (counts[s][row.sequenceLabel] ?? 0) + 1;
+  }
+  assert.deepEqual(counts, { Male: { TR: 4, RT: 4 }, Female: { TR: 4, RT: 4 } });
+  // continuous numbering across strata
+  assert.equal(res.rows[8].subjectId, "009");
+});
+
+test("unbalanced stratum size is rejected", () => {
+  const res = generateSchedule({
+    method: "crossover",
+    designId: "2x2x2",
+    drugs: ["T", "R"],
+    n: 0,
+    blockSize: 4,
+    seed: 5,
+    strata: [{ name: "Male", n: 7 }],
+  });
+  assert.ok(!res.ok);
 });
 
 test("reserve subjects are balanced and labelled separately", () => {

@@ -9,6 +9,8 @@ export interface GenRow {
   subjectId: string;
   /** Optional separate enrollment/screening number. */
   enrollNo?: string;
+  /** Optional stratum name (when stratified randomization is used). */
+  stratum?: string;
   /** Sequence/group label, e.g. "TR" for crossover or the drug name for parallel. */
   sequenceLabel: string;
   treatments: string[];
@@ -20,6 +22,11 @@ export interface BilingualError {
   tr: string;
   /** Nearest balanced volunteer count, when the error is a divisibility problem. */
   suggestion?: number;
+}
+
+export interface Stratum {
+  name: string;
+  n: number;
 }
 
 export interface NumberScheme {
@@ -43,6 +50,7 @@ export interface GenParams extends NumberScheme {
   designId?: DesignId; // crossover only
   allocationRatio?: string; // parallel only, e.g. "1:1"
   reserve?: number; // standby subjects
+  strata?: Stratum[]; // stratified randomization
 }
 
 export interface GenSuccess {
@@ -54,6 +62,7 @@ export interface GenSuccess {
   sequenceLabels: string[];
   periods: number;
   varianceBalanced: boolean;
+  strata: string[];
 }
 
 export type GenResult = GenSuccess | { ok: false; error: BilingualError };
@@ -71,13 +80,7 @@ function formatNo(prefix: string, value: number, pad: number): string {
 }
 
 /** Build n assignments from weighted items using shuffled balanced blocks. */
-function blockedAllocation<T>(
-  items: T[],
-  weights: number[],
-  n: number,
-  blockSize: number,
-  r: () => number
-): T[] {
+function blockedAllocation<T>(items: T[], weights: number[], n: number, blockSize: number, r: () => number): T[] {
   const sumWeights = weights.reduce((a, b) => a + b, 0);
   const perBlock = weights.map((w) => (blockSize * w) / sumWeights);
   const numBlocks = Math.ceil(n / blockSize);
@@ -95,8 +98,7 @@ function blockedAllocation<T>(
 
 /** Nearest multiple of `unit` that is >= unit. */
 function nearestBalanced(n: number, unit: number): number {
-  const rounded = Math.round(n / unit) * unit;
-  return Math.max(unit, rounded);
+  return Math.max(unit, Math.round(n / unit) * unit);
 }
 
 function err(en: string, tr: string, suggestion?: number): GenResult {
@@ -114,21 +116,12 @@ export function generateSchedule(p: GenParams): GenResult {
   const reservePrefix = p.reservePrefix ?? "R";
   const reservePad = p.reservePad ?? 2;
 
-  const makeRow = (
-    assignedTreatments: string[],
-    seqLabel: string,
-    i: number,
-    isReserve: boolean
-  ): GenRow => {
+  const makeRow = (treatments: string[], i: number, isReserve: boolean, stratum?: string): GenRow => {
     const subjectId = isReserve
       ? formatNo(reservePrefix, i + 1, reservePad)
       : formatNo(randPrefix, randStart + i, randPad);
-    const row: GenRow = {
-      subjectId,
-      sequenceLabel: seqLabel,
-      treatments: assignedTreatments,
-      isReserve,
-    };
+    const row: GenRow = { subjectId, sequenceLabel: treatments.join(""), treatments, isReserve };
+    if (stratum) row.stratum = stratum;
     if (!isReserve && p.enrollEnabled) {
       row.enrollNo = formatNo(p.enrollPrefix ?? "", (p.enrollStart ?? 1) + i, p.enrollPad ?? 3);
     }
@@ -138,8 +131,8 @@ export function generateSchedule(p: GenParams): GenResult {
   if (!blockSize) return err("Please select a block size.", "Lütfen bir blok boyutu seçin.");
   if (drugs.length < 1) return err("Enter at least one drug.", "En az bir ilaç girin.");
 
-  // resolve items + weights + sequence labels for both methods
-  let items: string[][]; // each item is the per-period treatment list (parallel: single)
+  // Resolve allocation items, weights, sequences and the balancing unit.
+  let items: string[][];
   let weights: number[];
   let sequences: string[][];
   let periods: number;
@@ -154,24 +147,6 @@ export function generateSchedule(p: GenParams): GenResult {
         `Tahsis oranı ilaç sayısıyla eşleşen ${drugs.length} bileşen içermeli, örn. "${example}".`
       );
     }
-    const sum = w.reduce((a, b) => a + b, 0);
-    if (blockSize % sum !== 0)
-      return err(
-        `Block size (${blockSize}) must be a multiple of the allocation ratio sum (${sum}).`,
-        `Blok boyutu (${blockSize}), tahsis oranı toplamının (${sum}) katı olmalı.`
-      );
-    if (n % sum !== 0)
-      return err(
-        `Total volunteers (${n}) must be divisible by the allocation ratio sum (${sum}).`,
-        `Toplam gönüllü (${n}), tahsis oranı toplamına (${sum}) bölünebilmeli.`,
-        nearestBalanced(n, sum)
-      );
-    if (n < blockSize)
-      return err(
-        `Total volunteers (${n}) must be at least the block size (${blockSize}).`,
-        `Toplam gönüllü (${n}), blok boyutundan (${blockSize}) küçük olamaz.`
-      );
-
     items = drugs.map((d) => [d]);
     weights = w;
     sequences = drugs.map((d) => [d]);
@@ -201,42 +176,63 @@ export function generateSchedule(p: GenParams): GenResult {
         `${design.label.tr} ${drugs.length} tedaviyi kabul etmiyor.`
       );
     }
-
-    const seqCount = sequences.length;
-    periods = designPeriods(design, drugs.length);
-    if (blockSize % seqCount !== 0)
-      return err(
-        `Block size (${blockSize}) must be a multiple of the sequence count (${seqCount}).`,
-        `Blok boyutu (${blockSize}), sekans sayısının (${seqCount}) katı olmalı.`
-      );
-    if (n % seqCount !== 0)
-      return err(
-        `Total volunteers (${n}) must be divisible by the sequence count (${seqCount}) for a balanced design.`,
-        `Dengeli tasarım için toplam gönüllü (${n}), sekans sayısına (${seqCount}) bölünebilmeli.`,
-        nearestBalanced(n, seqCount)
-      );
-    if (n < blockSize)
-      return err(
-        `Total volunteers (${n}) must be at least the block size (${blockSize}).`,
-        `Toplam gönüllü (${n}), blok boyutundan (${blockSize}) küçük olamaz.`
-      );
-
     items = sequences;
-    weights = Array(seqCount).fill(1) as number[];
+    weights = Array(sequences.length).fill(1) as number[];
+    periods = designPeriods(design, drugs.length);
     varianceBalanced = design.varianceBalanced;
   }
 
-  // main subjects
-  const seqUnit = method === "parallel" ? weights.reduce((a, b) => a + b, 0) : sequences.length;
-  const mainAssign = blockedAllocation(items, weights, n, blockSize, r);
-  const rows = mainAssign.map((seq, i) => makeRow(seq, seq.join(""), i, false));
+  const unit = weights.reduce((a, b) => a + b, 0); // sumWeights (parallel) or seqCount (crossover)
+  const unitNoun = { en: method === "parallel" ? "allocation ratio sum" : "sequence count", tr: method === "parallel" ? "tahsis oranı toplamı" : "sekans sayısı" };
 
-  // reserve subjects — continue the same RNG stream; balanced at the smallest
-  // unit (one of each sequence per block) so even small reserve pools stay even.
+  if (blockSize % unit !== 0)
+    return err(
+      `Block size (${blockSize}) must be a multiple of the ${unitNoun.en} (${unit}).`,
+      `Blok boyutu (${blockSize}), ${unitNoun.tr} (${unit}) katı olmalı.`
+    );
+
+  // Validate a single subject count against balance + block-size rules.
+  const checkCount = (count: number, label: { en: string; tr: string }): GenResult | null => {
+    if (count % unit !== 0)
+      return err(
+        `${label.en} (${count}) must be divisible by the ${unitNoun.en} (${unit}) for a balanced design.`,
+        `Dengeli tasarım için ${label.tr} (${count}), ${unitNoun.tr} (${unit}) bölünebilmeli.`,
+        nearestBalanced(count, unit)
+      );
+    if (count < blockSize)
+      return err(
+        `${label.en} (${count}) must be at least the block size (${blockSize}).`,
+        `${label.tr} (${count}), blok boyutundan (${blockSize}) küçük olamaz.`
+      );
+    return null;
+  };
+
+  const strata = (p.strata ?? []).filter((s) => s.name && s.n > 0);
+  const rows: GenRow[] = [];
+
+  if (strata.length) {
+    for (const s of strata) {
+      const e = checkCount(s.n, { en: `Stratum "${s.name}" size`, tr: `"${s.name}" tabakası büyüklüğü` });
+      if (e) return e;
+    }
+    let idx = 0;
+    for (const s of strata) {
+      const assign = blockedAllocation(items, weights, s.n, blockSize, r);
+      for (let k = 0; k < assign.length; k++) rows.push(makeRow(assign[k], idx + k, false, s.name));
+      idx += s.n;
+    }
+  } else {
+    const e = checkCount(n, { en: "Total volunteers", tr: "Toplam gönüllü" });
+    if (e) return e;
+    const assign = blockedAllocation(items, weights, n, blockSize, r);
+    for (let i = 0; i < assign.length; i++) rows.push(makeRow(assign[i], i, false));
+  }
+
+  // Reserve subjects — continue the same RNG stream; balanced at the smallest unit.
   let reserveRows: GenRow[] = [];
   if (reserveCount > 0) {
-    const resAssign = blockedAllocation(items, weights, reserveCount, seqUnit, r);
-    reserveRows = resAssign.map((seq, i) => makeRow(seq, seq.join(""), i, true));
+    const resAssign = blockedAllocation(items, weights, reserveCount, unit, r);
+    reserveRows = resAssign.map((seq, i) => makeRow(seq, i, true));
   }
 
   return {
@@ -247,5 +243,6 @@ export function generateSchedule(p: GenParams): GenResult {
     sequenceLabels: sequences.map((s) => s.join("")),
     periods,
     varianceBalanced,
+    strata: strata.map((s) => s.name),
   };
 }

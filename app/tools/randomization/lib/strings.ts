@@ -109,6 +109,48 @@ const D: Dict = {
   schedule: { en: "Schedule", tr: "Liste" },
   treatmentMapSheet: { en: "Treatment map", tr: "Tedavi künyesi" },
   auditSheet: { en: "Audit", tr: "Denetim" },
+  // Faz 3 — stratification
+  stratification: { en: "Stratification (optional)", tr: "Tabakalandırma (opsiyonel)" },
+  stratificationHint: {
+    en: "Format: name:n, comma-separated — e.g. Male:12, Female:12. Each stratum is randomized independently and balanced on its own. Overrides total volunteers.",
+    tr: "Biçim: ad:n, virgülle — örn. Erkek:12, Kadın:12. Her tabaka bağımsız randomize edilip kendi içinde dengelenir. Toplam gönüllüyü geçersiz kılar.",
+  },
+  stratumCol: { en: "Stratum", tr: "Tabaka" },
+  mStratification: { en: "Stratification", tr: "Tabakalandırma" },
+  // Faz 3 — methodology & validation
+  methTitle: { en: "Methodology & validation", tr: "Metodoloji & doğrulama" },
+  methTag: { en: "reference", tr: "referans" },
+  methAlgoH: { en: "Algorithm", tr: "Algoritma" },
+  methAlgoP: {
+    en: "Allocation uses a seeded, platform-independent mulberry32 pseudo-random number generator (RNG_VERSION 1.0) driving a Fisher–Yates shuffle. The same seed and parameters produce a bit-for-bit identical schedule on any device or browser — no Math.random(), no server, no network. The seed is recorded with every schedule.",
+    tr: "Tahsis; Fisher–Yates karıştırmasını süren, seed'li ve platformdan bağımsız bir mulberry32 sözde-rastgele üreteci (RNG_VERSION 1.0) kullanır. Aynı seed ve parametreler her cihaz/tarayıcıda bit-bit aynı listeyi üretir — Math.random() yok, sunucu yok, ağ yok. Seed her listeyle birlikte kaydedilir.",
+  },
+  methBalanceH: { en: "Balance", tr: "Denge" },
+  methBalanceP: {
+    en: "Subjects are assigned in permuted blocks so each sequence (crossover) or arm (parallel) receives an equal share within every block. Williams designs are variance-balanced: each treatment appears once per period and each ordered pair of treatments is adjacent equally often, neutralising first-order carryover. Replicate designs (partial TRR/RTR/RRT, full TRTR/RTRT) follow their canonical templates for HVD / reference-scaled analyses.",
+    tr: "Denekler permüte bloklar hâlinde atanır; her blok içinde her sekans (çapraz) veya kol (paralel) eşit pay alır. Williams tasarımları varyans-dengelidir: her tedavi dönem başına bir kez görünür ve her sıralı tedavi çifti eşit sıklıkta komşu olur; birinci derece carryover nötralize edilir. Replicate tasarımlar (partial TRR/RTR/RRT, full TRTR/RTRT) HVD / referans-ölçekli analizler için kanonik şablonlarını izler.",
+  },
+  methKatH: { en: "Known-answer tests", tr: "Bilinen-cevap testleri" },
+  methKatP: {
+    en: "A committed test suite pins the RNG output and full schedules to fixed expected values (e.g. seed 12345 on a 2×2×2 design yields a known verification code), so any unintended change to the algorithm is caught before release.",
+    tr: "Depoya işlenmiş bir test paketi, RNG çıktısını ve tam listeleri sabit beklenen değerlere bağlar (örn. 2×2×2 tasarımda seed 12345 bilinen bir doğrulama kodu verir); böylece algoritmadaki istenmeyen değişiklikler sürümden önce yakalanır.",
+  },
+  methReproH: { en: "Verification & reproduction", tr: "Doğrulama & yeniden üretim" },
+  methReproP: {
+    en: "Each schedule is serialised to a canonical string and hashed with SHA-256 (Web Crypto). The first 16 hex characters are shown as a verification code on screen, in the PDF, and in every export filename. An independent auditor can re-enter the seed and parameters, regenerate the list, and confirm the identical hash — making the schedule tamper-evident.",
+    tr: "Her liste kanonik bir stringe dönüştürülüp SHA-256 (Web Crypto) ile özetlenir. İlk 16 hex karakter; ekranda, PDF'te ve her dışa aktarım dosya adında doğrulama kodu olarak gösterilir. Bağımsız bir denetçi seed ve parametreleri yeniden girip listeyi üretebilir ve aynı hash'i doğrulayabilir — liste manipülasyona karşı kanıtlanır.",
+  },
+  methVersionH: { en: "Version", tr: "Sürüm" },
+  methVersionP: {
+    en: "Tool v1.0.0 · RNG mulberry32 v1.0. Algorithm and version are stamped on every schedule and export.",
+    tr: "Araç v1.0.0 · RNG mulberry32 v1.0. Algoritma ve sürüm her liste ve dışa aktarıma damgalanır.",
+  },
+  // Faz 3 — PDF signatures
+  sigPrepared: { en: "Prepared by", tr: "Hazırlayan" },
+  sigChecked: { en: "Checked by", tr: "Kontrol eden" },
+  sigApproved: { en: "Approved by", tr: "Onaylayan" },
+  sigDate: { en: "Date", tr: "Tarih" },
+  sigSignature: { en: "Signature", tr: "İmza" },
 };
 
 export function tr(lang: Lang, key: keyof typeof D): string {
