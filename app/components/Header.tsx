@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import HeaderPixels from "./HeaderPixels";
 
 const navItems = [
   { href: "/", label: "Home" },
@@ -39,6 +40,7 @@ export default function Header() {
         <Link href="/" className="logo" style={{ textDecoration: "none", color: "inherit" }}>
           trial<span>·</span>grids
         </Link>
+        <HeaderPixels />
         <button
           className="nav-toggle"
           onClick={() => { setOpen(!open); setToolsOpen(false); }}
