@@ -1,15 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import Select from "@/app/components/Select";
-import LanguageToggle from "@/app/components/LanguageToggle";
 import { RNG_ALGO, RNG_VERSION } from "./lib/rng";
 import { DESIGNS, DESIGN_ORDER, designPeriods } from "./lib/designs";
 import type { DesignId } from "./lib/designs";
 import { generateSchedule, parseAllocationRatio, parseStratification, applyStratumSuggestion, STRATUM_SEP, BLOCK_OPTIONS } from "./lib/generate";
-import type { GenRow, Method, Stratum, StratAxis } from "./lib/generate";
-import { canonicalString, sha256Hex, verificationCode } from "./lib/hash";
-import type { AuditMeta } from "./lib/hash";
+import type { GenRow, Method, Stratum } from "./lib/generate";
+import { canonicalString, sha256Hex } from "./lib/hash";
 import { TOOL_VERSION, TOOL_NAME } from "./lib/meta";
 import { tr } from "./lib/strings";
 import type { Lang } from "./lib/strings";
@@ -125,10 +123,15 @@ export default function RandomizationPage() {
   useEffect(() => {
     // Sync the seed input once on mount (initial seed is generated client-side).
     setSeedRaw(String(seed));
+    // Language follows the site-wide preference set on the landing page.
+    try {
+      const saved = localStorage.getItem("trialgrids-lang");
+      if (saved === "en" || saved === "tr") setLang(saved);
+    } catch {
+      /* localStorage unavailable — keep default */
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const onLang = useCallback((l: Lang) => setLang(l), []);
 
   const groups = groupsRaw.split(",").map((s) => s.trim()).filter(Boolean);
   const design = method === "crossover" && designId ? DESIGNS[designId] : null;
@@ -807,20 +810,17 @@ export default function RandomizationPage() {
           <p className="lede">{tr(lang, "lede")}</p>
           <a
             href="/tools/randomization/verify"
-            style={{ display: "inline-block", marginTop: ".5rem", fontFamily: "var(--font-jetbrains-mono)", fontSize: ".74rem", color: "#6d28d9", textDecoration: "underline", textUnderlineOffset: "3px" }}
+            style={{ display: "inline-block", marginTop: ".5rem", fontFamily: "var(--font-jetbrains-mono)", fontSize: ".74rem", color: "var(--accent-2-ink, #b8432a)", textDecoration: "underline", textUnderlineOffset: "3px" }}
           >
             {tr(lang, "verifyHeroLink")}
           </a>
         </div>
-        <div className="meta" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: ".75rem" }}>
-          <LanguageToggle onChange={onLang} inline />
-          <div>
-            tool 01
-            <br />
-            client-side only
-            <br />
-            {tr(lang, "verified")}
-          </div>
+        <div className="meta">
+          tool 01
+          <br />
+          client-side only
+          <br />
+          {tr(lang, "verified")}
         </div>
       </div>
 
@@ -1426,7 +1426,7 @@ export default function RandomizationPage() {
                       <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                         <button
                           onClick={() => restoreRun(r)}
-                          style={{ background: "none", border: "none", color: "var(--accent, #2b4a6f)", textDecoration: "underline", cursor: "pointer", fontFamily: "var(--font-jetbrains-mono)", fontSize: ".72rem", padding: 0, marginRight: ".75rem" }}
+                          style={{ background: "none", border: "none", color: "var(--accent-2-ink, #b8432a)", textDecoration: "underline", cursor: "pointer", fontFamily: "var(--font-jetbrains-mono)", fontSize: ".72rem", padding: 0, marginRight: ".75rem" }}
                         >
                           {tr(lang, "histRestore")}
                         </button>

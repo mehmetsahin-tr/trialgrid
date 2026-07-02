@@ -318,11 +318,12 @@ function SaveRow({
   );
 }
 
-// --- Radio group ---
+// --- Assessment card (6-axis console) ---
+// Segmented pill buttons instead of radio rows: cleaner scan, same data model.
+// Single-select cards expose radiogroup semantics; multi-select uses aria-pressed.
 
-function RadioGroup({
+function AssessmentCard({
   title,
-  name,
   options,
   selected,
   multi,
@@ -331,7 +332,6 @@ function RadioGroup({
   warning,
 }: {
   title: string;
-  name: string;
   options: MatrixOption[];
   selected: string | string[];
   multi?: boolean;
@@ -342,111 +342,48 @@ function RadioGroup({
 }) {
   const isChecked = (val: string): boolean =>
     Array.isArray(selected) ? selected.includes(val) : selected === val;
+  const done = Array.isArray(selected) ? selected.length > 0 : !!selected;
   const showWarning =
     !!warning &&
     (Array.isArray(selected)
       ? selected.includes(warning.whenValue)
       : selected === warning.whenValue);
   return (
-    <div style={{ marginBottom: "1.4rem" }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "baseline",
-          flexWrap: "wrap",
-          gap: ".55rem .9rem",
-          marginBottom: ".55rem",
-        }}
-      >
-        <div
-          style={{
-            fontFamily: "var(--font-jetbrains-mono)",
-            fontSize: ".68rem",
-            textTransform: "uppercase",
-            letterSpacing: ".1em",
-            color: "var(--muted)",
-            flexShrink: 0,
-          }}
-        >
-          {title}
-        </div>
-        {note && (
-          <div
-            style={{
-              fontFamily: "var(--font-jetbrains-mono)",
-              fontSize: ".68rem",
-              color: "var(--muted)",
-              fontStyle: "italic",
-              lineHeight: 1.5,
-              flex: "1 1 280px",
-              minWidth: 0,
-            }}
-          >
-            {note}
-          </div>
-        )}
+    <div className={`ae-card${done ? " done" : ""}`}>
+      <div className="ae-card-head">
+        <span className="ae-card-title">{title}</span>
+        {done && <span className="ae-card-check">✓</span>}
       </div>
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: ".5rem .9rem",
-        }}
-      >
+      <div className="ae-seg" role={multi ? "group" : "radiogroup"} aria-label={title}>
         {options.map((o) => {
           const checked = isChecked(o.value);
           const hasTip = !!o.tooltip;
           return (
-            <label
+            <button
               key={o.value}
-              className={hasTip ? "ae-tip-wrap" : undefined}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: ".45rem",
-                padding: ".4rem .7rem",
-                border: `1px solid ${checked ? "var(--accent)" : "var(--rule)"}`,
-                background: checked ? "rgba(91, 141, 196, 0.08)" : "var(--paper)",
-                cursor: "pointer",
-                fontFamily: "var(--font-jetbrains-mono)",
-                fontSize: ".78rem",
-                color: checked ? "var(--ink)" : "var(--muted)",
-                textTransform: "none",
-                letterSpacing: 0,
-                marginBottom: 0,
-                position: hasTip ? "relative" : undefined,
-              }}
+              type="button"
+              className={`ae-seg-btn${checked ? " on" : ""}${hasTip ? " ae-tip-wrap" : ""}`}
+              role={multi ? undefined : "radio"}
+              aria-checked={multi ? undefined : checked}
+              aria-pressed={multi ? checked : undefined}
+              onClick={() => onSelect(o.value)}
             >
-              <input
-                type={multi ? "checkbox" : "radio"}
-                name={name}
-                value={o.value}
-                checked={checked}
-                onChange={() => onSelect(o.value)}
-                style={{
-                  width: "auto",
-                  margin: 0,
-                  cursor: "pointer",
-                  accentColor: "var(--accent)",
-                }}
-              />
-              <span style={{ color: "var(--muted)", fontSize: ".7rem" }}>
-                {o.value}
-              </span>
-              <span>{o.label}</span>
+              <span className="ae-code">{o.value}</span>
+              {o.label}
               {hasTip && <span className="ae-tip-bubble">{o.tooltip}</span>}
-            </label>
+            </button>
           );
         })}
       </div>
+      {note && <div className="ae-card-note">{note}</div>}
       {showWarning && (
         <div
           style={{
             marginTop: ".7rem",
             padding: ".6rem .85rem",
-            border: "1px solid var(--accent-2)",
-            background: "rgba(200, 90, 64, 0.08)",
-            color: "var(--accent-2)",
+            border: "1px solid var(--warn)",
+            background: "var(--warn-soft)",
+            color: "var(--warn)",
             fontFamily: "var(--font-jetbrains-mono)",
             fontSize: ".75rem",
             letterSpacing: ".02em",
@@ -1075,7 +1012,9 @@ export default function AdverseEventPage() {
           <span className="tag">required</span>
         </div>
         <div className="panel-body">
-          <div className="controls">
+          {/* Top-aligned: the default .controls end-alignment made the first two
+              columns sit lower than the taller "Last dose" block (asymmetric). */}
+          <div className="controls" style={{ alignItems: "start" }}>
             <div data-field="startDate">
               <label>
                 Starting<span style={REQ}>*</span>
@@ -1130,8 +1069,51 @@ export default function AdverseEventPage() {
               )}
             </div>
             <div data-field="lastDoseDate">
-              <label>Last dose before AE</label>
-              <div style={DATETIME_ROW}>
+              {/* Label row carries the compact "None" toggle so all three columns
+                  share the exact same height (symmetric with Starting/Ending). */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: ".6rem" }}>
+                <label style={{ marginBottom: 0 }}>Last dose before AE</label>
+                <label
+                  title="Subject had not yet received drug"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: ".35rem",
+                    cursor: "pointer",
+                    textTransform: "none",
+                    letterSpacing: 0,
+                    fontFamily: "var(--font-jetbrains-mono)",
+                    fontSize: ".68rem",
+                    color: form.lastDoseNone ? "var(--ink)" : "var(--muted)",
+                    marginBottom: 0,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={form.lastDoseNone}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setForm((prev) => ({
+                        ...prev,
+                        lastDoseNone: checked,
+                        lastDoseDate: checked ? "" : prev.lastDoseDate,
+                        lastDoseTime: checked ? "" : prev.lastDoseTime,
+                      }));
+                      setSuccessMsg("");
+                      unmarkSectionSaved("dateTime");
+                    }}
+                    style={{
+                      width: "auto",
+                      margin: 0,
+                      cursor: "pointer",
+                      accentColor: "var(--accent)",
+                    }}
+                  />
+                  None
+                </label>
+              </div>
+              <div style={{ ...DATETIME_ROW, marginTop: ".4rem" }}>
                 <input
                   type="date"
                   lang="en-GB"
@@ -1148,44 +1130,19 @@ export default function AdverseEventPage() {
                   style={form.lastDoseNone ? DISABLED_INPUT_STYLE : undefined}
                 />
               </div>
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: ".5rem",
-                  marginTop: ".55rem",
-                  cursor: "pointer",
-                  textTransform: "none",
-                  letterSpacing: 0,
-                  fontFamily: "var(--font-jetbrains-mono)",
-                  fontSize: ".75rem",
-                  color: form.lastDoseNone ? "var(--ink)" : "var(--muted)",
-                  marginBottom: 0,
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={form.lastDoseNone}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
-                    setForm((prev) => ({
-                      ...prev,
-                      lastDoseNone: checked,
-                      lastDoseDate: checked ? "" : prev.lastDoseDate,
-                      lastDoseTime: checked ? "" : prev.lastDoseTime,
-                    }));
-                    setSuccessMsg("");
-                    unmarkSectionSaved("dateTime");
-                  }}
+              {form.lastDoseNone && (
+                <div
                   style={{
-                    width: "auto",
-                    margin: 0,
-                    cursor: "pointer",
-                    accentColor: "var(--accent)",
+                    marginTop: ".45rem",
+                    fontFamily: "var(--font-jetbrains-mono)",
+                    fontSize: ".68rem",
+                    color: "var(--muted)",
+                    fontStyle: "italic",
                   }}
-                />
-                None — subject had not yet received drug
-              </label>
+                >
+                  Subject had not yet received drug.
+                </div>
+              )}
             </div>
           </div>
           <SaveRow
@@ -1196,30 +1153,59 @@ export default function AdverseEventPage() {
         </div>
       </div>
 
-      {/* Section 6: Assessment matrix */}
+      {/* Section 6: Assessment — live 6-axis profile console */}
       <div className="panel">
         <div className="panel-head">
           <h2>Assessment</h2>
-          <span className="tag">select one per row</span>
+          <span className="tag">live profile</span>
         </div>
         <div className="panel-body">
-          {MATRIX_GROUPS.map((g) => (
-            <RadioGroup
-              key={g.key}
-              title={g.title}
-              name={g.key}
-              options={g.options}
-              selected={form.assessment[g.key]}
-              multi={g.multi}
-              onSelect={(v) =>
-                g.multi
-                  ? toggleAssessmentOption(g.key as "actionTaken", v)
-                  : updateAssessment(g.key, v)
-              }
-              note={g.note}
-              warning={g.warning}
-            />
-          ))}
+          {/* Profile strip: one chip per axis, updated in real time as the matrix is filled. */}
+          <div className="ae-profile">
+            {MATRIX_GROUPS.map((g) => {
+              const sel = form.assessment[g.key];
+              const labels = g.options
+                .filter((o) => (Array.isArray(sel) ? sel.includes(o.value) : sel === o.value))
+                .map((o) => o.label);
+              const filled = labels.length > 0;
+              const alert = !!g.warning && (Array.isArray(sel) ? sel.includes(g.warning.whenValue) : sel === g.warning.whenValue);
+              return (
+                <span key={g.key} className={`ae-chip${alert ? " alert" : filled ? " filled" : ""}`}>
+                  {filled ? labels.join(" + ") : `${g.title}: —`}
+                </span>
+              );
+            })}
+            {(() => {
+              const doneCount = MATRIX_GROUPS.filter((g) => {
+                const sel = form.assessment[g.key];
+                return Array.isArray(sel) ? sel.length > 0 : !!sel;
+              }).length;
+              const complete = doneCount === MATRIX_GROUPS.length;
+              return (
+                <span className={`ae-progress${complete ? " complete" : ""}`}>
+                  {complete ? "✓ 6/6 assessed" : `${doneCount}/${MATRIX_GROUPS.length} assessed`}
+                </span>
+              );
+            })()}
+          </div>
+          <div className="ae-matrix">
+            {MATRIX_GROUPS.map((g) => (
+              <AssessmentCard
+                key={g.key}
+                title={g.title}
+                options={g.options}
+                selected={form.assessment[g.key]}
+                multi={g.multi}
+                onSelect={(v) =>
+                  g.multi
+                    ? toggleAssessmentOption(g.key as "actionTaken", v)
+                    : updateAssessment(g.key, v)
+                }
+                note={g.note}
+                warning={g.warning}
+              />
+            ))}
+          </div>
           <SaveRow
             hasContent={sectionHasContent("assessment", form)}
             saved={savedSections.has("assessment")}

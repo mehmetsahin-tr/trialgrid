@@ -5,7 +5,9 @@ import { useEffect, useState } from "react";
 type Lang = "en" | "tr";
 
 type Props = {
-  onChange: (lang: Lang) => void;
+  /** Optional: omit when the toggle only sets the site-wide preference
+      (localStorage), e.g. on the server-rendered landing page. */
+  onChange?: (lang: Lang) => void;
   /** Render inline (within a layout) instead of absolutely positioned. */
   inline?: boolean;
 };
@@ -18,7 +20,7 @@ export default function LanguageToggle({ onChange, inline = false }: Props) {
       const saved = localStorage.getItem("trialgrids-lang") as Lang | null;
       if (saved === "en" || saved === "tr") {
         setLang(saved);
-        onChange(saved);
+        onChange?.(saved);
       }
     } catch {
       // localStorage not available, use default
@@ -27,7 +29,7 @@ export default function LanguageToggle({ onChange, inline = false }: Props) {
 
   const handleChange = (newLang: Lang) => {
     setLang(newLang);
-    onChange(newLang);
+    onChange?.(newLang);
     try {
       localStorage.setItem("trialgrids-lang", newLang);
     } catch {
@@ -53,7 +55,7 @@ export default function LanguageToggle({ onChange, inline = false }: Props) {
         onClick={() => handleChange("en")}
         style={{
           padding: "4px 14px",
-          background: lang === "en" ? "var(--accent, #7c3aed)" : "transparent",
+          background: lang === "en" ? "var(--accent-2-ink, #b8432a)" : "transparent",
           color: lang === "en" ? "#ffffff" : "var(--muted, #7a7868)",
           border: "none",
           borderRadius: "3px",
@@ -69,7 +71,7 @@ export default function LanguageToggle({ onChange, inline = false }: Props) {
         onClick={() => handleChange("tr")}
         style={{
           padding: "4px 14px",
-          background: lang === "tr" ? "var(--accent, #7c3aed)" : "transparent",
+          background: lang === "tr" ? "var(--accent-2-ink, #b8432a)" : "transparent",
           color: lang === "tr" ? "#ffffff" : "var(--muted, #7a7868)",
           border: "none",
           borderRadius: "3px",
