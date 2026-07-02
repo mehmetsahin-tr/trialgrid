@@ -16,6 +16,9 @@ import type { Lang } from "./lib/strings";
 import { buildXlsx } from "./lib/xlsx";
 import type { Cell } from "./lib/xlsx";
 import { toCSV, download } from "./lib/export";
+import { reproduceRun } from "./lib/reproduce";
+import { encodeSpec } from "./lib/spectoken";
+import type { RunSnapshot, TreatmentInfo, OutputMode, Generated } from "./lib/snapshot";
 
 // Calm, non-clashing data colours (purple / teal / olive / amber), WCAG AA on
 // light backgrounds. The SEQUENCE column carries the AB/BA text too, so colour
@@ -25,13 +28,6 @@ const GROUP_COLORS_PDF = [[109, 40, 217], [15, 118, 110], [77, 124, 15], [180, 8
 
 const TR_DESIGNS: DesignId[] = ["partial-replicate", "full-replicate-2seq", "full-replicate-4seq"];
 
-interface TreatmentInfo {
-  product: string;
-  substance: string;
-  strength: string;
-  role: "" | "Test" | "Reference";
-  batch: string;
-}
 const emptyInfo: TreatmentInfo = { product: "", substance: "", strength: "", role: "", batch: "" };
 
 function cryptoSeed(): number {
@@ -44,36 +40,6 @@ function cryptoSeed(): number {
 // localStorage key for the client-side run history (never leaves the device).
 const RUNS_KEY = "trialgrid.randomization.runs.v1";
 
-type OutputMode = "blinded" | "unblinded" | "both";
-
-// Full snapshot of every input needed to reproduce and re-display a run.
-interface RunSnapshot {
-  method: Method;
-  designId: DesignId | "";
-  n: number;
-  groupsRaw: string;
-  seed: number;
-  blockSize: number;
-  allocationRaw: string;
-  studyCode: string;
-  sponsor: string;
-  protocolVersion: string;
-  protocolDate: string;
-  generatedBy: string;
-  checkedBy: string;
-  reserveRaw: string;
-  randPrefix: string;
-  randStartRaw: string;
-  randPad: number;
-  enrollEnabled: boolean;
-  enrollPrefix: string;
-  enrollStartRaw: string;
-  enrollPad: number;
-  mapping: Record<string, TreatmentInfo>;
-  outputMode: OutputMode;
-  strataRaw: string;
-}
-
 interface RunRecord {
   id: string;
   savedAt: string;
@@ -84,20 +50,6 @@ interface RunRecord {
   snapshot: RunSnapshot;
 }
 
-interface Generated {
-  rows: GenRow[];
-  reserveRows: GenRow[];
-  sequences: string[][];
-  sequenceLabels: string[];
-  periods: number;
-  varianceBalanced: boolean;
-  strata: string[];
-  axes: StratAxis[];
-  meta: AuditMeta;
-  generatedAt: string;
-  hash: string;
-  code: string;
-}
 
 export default function RandomizationPage() {
   const [lang, setLang] = useState<Lang>("en");
@@ -139,6 +91,9 @@ export default function RandomizationPage() {
 
   const [genError, setGenError] = useState<{ en: string; tr: string; suggestion?: number; validBlocks?: number[]; stratum?: string } | null>(null);
   const [result, setResult] = useState<Generated | null>(null);
+  // The exact snapshot that produced `result` — used to build the verification spec token.
+  const [resultSnapshot, setResultSnapshot] = useState<RunSnapshot | null>(null);
+  const [specCopied, setSpecCopied] = useState<boolean>(false);
   const [repro, setRepro] = useState<"idle" | "ok" | "mismatch">("idle");
   const [ackImbalance, setAckImbalance] = useState<boolean>(false);
   const [exportGate, setExportGate] = useState<boolean>(false);
@@ -202,6 +157,8 @@ export default function RandomizationPage() {
 
   function clearOutput() {
     setResult(null);
+    setResultSnapshot(null);
+    setSpecCopied(false);
     setGenError(null);
     setRepro("idle");
     setAckImbalance(false);
@@ -301,70 +258,20 @@ export default function RandomizationPage() {
     setAckImbalance(false);
     setExportGate(false);
 
-    const drugs = input.groupsRaw.split(",").map((s) => s.trim()).filter(Boolean);
-    const stratPlan = parseStratification(input.strataRaw);
-    if ("error" in stratPlan) {
+    // Reproduce through the shared engine so the live tool and the /verify page
+    // always produce the identical schedule and verification code.
+    const rep = await reproduceRun(input);
+    if (!rep.ok) {
       setResult(null);
-      setGenError(stratPlan.error);
+      setGenError(rep.error);
       return;
     }
-
-    const res = generateSchedule({
-      method: input.method,
-      drugs,
-      n: input.n,
-      blockSize: input.blockSize,
-      seed: input.seed,
-      designId: input.method === "crossover" ? (input.designId || undefined) : undefined,
-      allocationRatio: input.method === "parallel" ? input.allocationRaw : undefined,
-      reserve: parseInt(input.reserveRaw, 10) || 0,
-      strata: stratPlan.strata,
-      randPrefix: input.randPrefix,
-      randStart: parseInt(input.randStartRaw, 10) || 1,
-      randPad: input.randPad,
-      enrollEnabled: input.enrollEnabled,
-      enrollPrefix: input.enrollPrefix,
-      enrollStart: parseInt(input.enrollStartRaw, 10) || 1,
-      enrollPad: input.enrollPad,
-    });
-    if (!res.ok) {
-      setResult(null);
-      setGenError(res.error);
-      return;
-    }
-
-    const meta: AuditMeta = {
-      studyCode: input.studyCode.trim(),
-      method: input.method,
-      designId: input.method === "crossover" ? input.designId || undefined : undefined,
-      drugs: [...drugs],
-      n: input.n,
-      blockSize: input.blockSize,
-      seed: input.seed,
-      allocation: input.method === "parallel" ? input.allocationRaw : "balanced",
-      generatedBy: input.generatedBy.trim(),
-    };
-    const allRows = [...res.rows, ...res.reserveRows];
-    const hash = await sha256Hex(canonicalString(meta, allRows));
-    const code = verificationCode(hash);
     const generatedAt = new Date().toISOString();
+    setResult({ ...rep.result, generatedAt });
+    setResultSnapshot(input);
+    setSpecCopied(false);
 
-    setResult({
-      rows: res.rows,
-      reserveRows: res.reserveRows,
-      sequences: res.sequences,
-      sequenceLabels: res.sequenceLabels,
-      periods: res.periods,
-      varianceBalanced: res.varianceBalanced,
-      strata: res.strata,
-      axes: stratPlan.axes,
-      meta,
-      generatedAt,
-      hash,
-      code,
-    });
-
-    if (save) saveRun(input, code, generatedAt, res.rows.length);
+    if (save) saveRun(input, rep.result.code, generatedAt, rep.result.rows.length);
   }
 
   async function generate() {
@@ -437,6 +344,31 @@ export default function RandomizationPage() {
     }
     const hash = await sha256Hex(canonicalString(result.meta, [...res.rows, ...res.reserveRows]));
     setRepro(hash === result.hash ? "ok" : "mismatch");
+  }
+
+  // Portable verification spec token for the current result (carries every input
+  // needed to independently reproduce it on the /verify page).
+  function buildSpecToken(): string {
+    if (!result || !resultSnapshot) return "";
+    return encodeSpec({
+      snap: resultSnapshot,
+      rng: `${RNG_ALGO}@${RNG_VERSION}`,
+      tool: TOOL_VERSION,
+      code: result.code,
+      generatedAt: result.generatedAt,
+    });
+  }
+
+  async function copySpec() {
+    const token = buildSpecToken();
+    if (!token || typeof navigator === "undefined" || !navigator.clipboard) return;
+    try {
+      await navigator.clipboard.writeText(token);
+      setSpecCopied(true);
+      setTimeout(() => setSpecCopied(false), 2000);
+    } catch {
+      /* clipboard blocked — the code is still visible for manual copy */
+    }
   }
 
   // --- derived helpers for output ---
@@ -573,7 +505,8 @@ export default function RandomizationPage() {
     if (!guardExport()) return;
     const comments = auditMatrix().map(([k, v]) => `# ${k}: ${v}`).join("\r\n");
     const integrity = `# ${tr(lang, "integrityTitle")}: ${tr(lang, "integrityStatement")}`;
-    let csv = `${comments}\r\n${integrity}\r\n\r\n${toCSV(scheduleMatrix(outputMode === "unblinded"))}\r\n`;
+    const spec = `# ${tr(lang, "specTitle")}: ${buildSpecToken()}`;
+    let csv = `${comments}\r\n${integrity}\r\n${spec}\r\n\r\n${toCSV(scheduleMatrix(outputMode === "unblinded"))}\r\n`;
     if (showDecode) {
       csv += `\r\n# ${tr(lang, "decodeTitle")} — ${tr(lang, "decodeIntro")}\r\n${toCSV(decodeMatrix())}\r\n`;
     }
@@ -588,7 +521,12 @@ export default function RandomizationPage() {
     if (!guardExport()) return;
     const sheets = [{ name: tr(lang, "schedule"), rows: scheduleMatrix(outputMode === "unblinded") }];
     if (showDecode) sheets.push({ name: tr(lang, "decodeSheet"), rows: decodeMatrix() });
-    const auditRows: Cell[][] = [...auditMatrix(), [], [tr(lang, "integrityTitle"), tr(lang, "integrityStatement")]];
+    const auditRows: Cell[][] = [
+      ...auditMatrix(),
+      [],
+      [tr(lang, "integrityTitle"), tr(lang, "integrityStatement")],
+      [tr(lang, "specTitle"), buildSpecToken()],
+    ];
     sheets.push({ name: tr(lang, "auditSheet"), rows: auditRows });
     const bytes = buildXlsx(sheets);
     download(
@@ -698,7 +636,7 @@ export default function RandomizationPage() {
         const nameField = filled ? filled.padEnd(22, " ") : "______________________";
         return `${label}: ${nameField}    ${sigDate}: ____________`;
       };
-      writeLines(
+      const afterSig = writeLines(
         [
           "— Signatures —",
           sigLine(tr(lang, "sigPrepared"), generatedBy),
@@ -709,6 +647,26 @@ export default function RandomizationPage() {
         ],
         y
       );
+      // Machine-readable verification spec token — paste on the /verify page to
+      // reproduce this schedule independently. Small and wrapped so it stays out
+      // of the way of the signed content.
+      const specToken = buildSpecToken();
+      if (specToken) {
+        doc.setFont("courier", "normal");
+        doc.setFontSize(6.5);
+        doc.setTextColor(120, 120, 120);
+        let sy = afterSig + 4;
+        if (sy > 275) { doc.addPage(); sy = 20; }
+        doc.text(`${tr(lang, "specTitle")} (verify at trialgrids.com/tools/randomization/verify):`, 14, sy);
+        sy += 3.6;
+        const wrapped = doc.splitTextToSize(specToken, doc.internal.pageSize.width - 28) as string[];
+        for (const line of wrapped) {
+          if (sy > 286) { doc.addPage(); sy = 20; }
+          doc.text(line, 14, sy);
+          sy += 3.2;
+        }
+        doc.setTextColor(0, 0, 0);
+      }
     };
 
     const renderDecodePage = () => {
@@ -755,7 +713,7 @@ export default function RandomizationPage() {
       doc.setFontSize(7);
       doc.setTextColor(140, 138, 128);
       doc.text(`Page ${p} / ${totalPages}`, doc.internal.pageSize.width - 14, doc.internal.pageSize.height - 8, { align: "right" });
-      doc.text(`trialgrids.com · verify ${result.code}`, 14, doc.internal.pageSize.height - 8);
+      doc.text(`trialgrids.com/tools/randomization/verify · ${result.code}`, 14, doc.internal.pageSize.height - 8);
     }
     doc.save(`randomization_${result.code}.pdf`);
   }
@@ -847,6 +805,12 @@ export default function RandomizationPage() {
           <p className="eyebrow">{tr(lang, "eyebrow")}</p>
           <h1>{tr(lang, "heading")}</h1>
           <p className="lede">{tr(lang, "lede")}</p>
+          <a
+            href="/tools/randomization/verify"
+            style={{ display: "inline-block", marginTop: ".5rem", fontFamily: "var(--font-jetbrains-mono)", fontSize: ".74rem", color: "#6d28d9", textDecoration: "underline", textUnderlineOffset: "3px" }}
+          >
+            {tr(lang, "verifyHeroLink")}
+          </a>
         </div>
         <div className="meta" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: ".75rem" }}>
           <LanguageToggle onChange={onLang} inline />
@@ -1400,6 +1364,18 @@ export default function RandomizationPage() {
                 <div style={{ marginTop: ".75rem", paddingTop: ".6rem", borderTop: "1px solid var(--rule, #e8e4d8)" }}>
                   <div style={{ fontFamily: "var(--font-jetbrains-mono)", textTransform: "uppercase", letterSpacing: ".05em", fontSize: ".64rem", color: "var(--muted, #7a7868)", marginBottom: ".3rem" }}>🔒 {tr(lang, "integrityTitle")}</div>
                   <p style={{ margin: 0, fontSize: ".72rem", lineHeight: 1.55, color: "var(--ink, #2a2722)" }}>{tr(lang, "integrityStatement")}</p>
+                </div>
+                {/* Portable verification spec code — paste on the /verify page to reproduce this schedule. */}
+                <div style={{ marginTop: ".75rem", paddingTop: ".6rem", borderTop: "1px solid var(--rule, #e8e4d8)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: ".5rem", flexWrap: "wrap", marginBottom: ".35rem" }}>
+                    <div style={{ fontFamily: "var(--font-jetbrains-mono)", textTransform: "uppercase", letterSpacing: ".05em", fontSize: ".64rem", color: "var(--muted, #7a7868)" }}>{tr(lang, "specTitle")}</div>
+                    <div className="btn-row" style={{ gap: ".4rem" }}>
+                      <button className="btn ghost" onClick={copySpec}>{specCopied ? tr(lang, "specCopied") : tr(lang, "specCopy")}</button>
+                      <a className="btn ghost" href="/tools/randomization/verify" target="_blank" rel="noopener noreferrer">{tr(lang, "specOpenVerify")}</a>
+                    </div>
+                  </div>
+                  <code style={{ display: "block", fontFamily: "var(--font-jetbrains-mono)", fontSize: ".62rem", lineHeight: 1.5, wordBreak: "break-all", background: "var(--paper, #faf9f5)", border: "1px solid var(--rule, #e8e4d8)", borderRadius: "4px", padding: ".5rem .6rem", maxHeight: "5.5rem", overflow: "auto" }}>{buildSpecToken()}</code>
+                  <p style={{ margin: ".4rem 0 0", color: "var(--muted, #7a7868)", fontSize: ".66rem", lineHeight: 1.5 }}>{tr(lang, "specHint")}</p>
                 </div>
               </div>
             </>

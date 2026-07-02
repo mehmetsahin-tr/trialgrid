@@ -248,6 +248,62 @@ const D: Dict = {
   sigApproved: { en: "Approved by", tr: "Onaylayan" },
   sigDate: { en: "Date", tr: "Tarih" },
   sigSignature: { en: "Signature", tr: "İmza" },
+  // Verification spec token + independent /verify page
+  specTitle: { en: "Verification spec code", tr: "Doğrulama spec kodu" },
+  specHint: {
+    en: "Keep this spec code with your schedule. Anyone can independently re-verify this exact list at any time — no account needed — on the Verify page, using the code below.",
+    tr: "Bu spec kodunu listenizle birlikte saklayın. Herkes, hesap gerekmeden, bu listeyi Doğrulama ekranında dilediği zaman bağımsızca yeniden doğrulayabilir — aşağıdaki kodu kullanarak.",
+  },
+  specCopy: { en: "Copy spec code", tr: "Spec kodunu kopyala" },
+  specCopied: { en: "Copied", tr: "Kopyalandı" },
+  specOpenVerify: { en: "Open Verify page", tr: "Doğrulama ekranını aç" },
+  verifyNav: { en: "Verify", tr: "Doğrula" },
+  verifyHeading: { en: "Verify a schedule", tr: "Bir listeyi doğrula" },
+  verifyIntro: {
+    en: "Paste a verification spec code to independently reproduce its randomization schedule and confirm it was not altered. This page runs entirely in your browser — nothing is uploaded, nothing is stored. A matching SHA-256 verification code proves the schedule is authentic.",
+    tr: "Bir randomizasyon listesini bağımsızca yeniden üretmek ve değiştirilmediğini doğrulamak için doğrulama spec kodunu yapıştırın. Bu ekran tamamen tarayıcınızda çalışır — hiçbir şey yüklenmez, hiçbir şey saklanmaz. Eşleşen bir SHA-256 doğrulama kodu, listenin özgün olduğunu kanıtlar.",
+  },
+  verifyInputLabel: { en: "Paste your verification spec code", tr: "Doğrulama spec kodunuzu yapıştırın" },
+  verifyInputPh: { en: "TG1.…", tr: "TG1.…" },
+  verifyCodeLabel: { en: "Verification code from your document (optional)", tr: "Belgenizdeki doğrulama kodu (opsiyonel)" },
+  verifyCodePh: { en: "e.g. 4EB8BD233A40E411", tr: "örn. 4EB8BD233A40E411" },
+  verifyBtn: { en: "Verify schedule", tr: "Listeyi doğrula" },
+  verifyOk: { en: "Verified — this schedule is authentic and fully reproducible.", tr: "Doğrulandı — bu liste özgün ve tamamen yeniden üretilebilir." },
+  verifyFail: { en: "Does not match — this schedule could not be reproduced from the code provided.", tr: "Eşleşmiyor — bu liste, verilen koddan yeniden üretilemedi." },
+  verifyRecomputed: { en: "Recomputed verification code", tr: "Yeniden hesaplanan doğrulama kodu" },
+  verifyExpected: { en: "Code carried in the spec", tr: "Spec içindeki kod" },
+  verifyDocCode: { en: "Code you entered", tr: "Girdiğiniz kod" },
+  verifyMatch: { en: "match", tr: "eşleşiyor" },
+  verifyNoMatch: { en: "no match", tr: "eşleşmiyor" },
+  verifyErrToken: {
+    en: "This spec code looks incomplete or altered. Please copy it again, in full, from the source document.",
+    tr: "Bu spec kodu eksik veya değiştirilmiş görünüyor. Lütfen kaynak belgeden eksiksiz olarak yeniden kopyalayın.",
+  },
+  verifyErrRepro: {
+    en: "The parameters in this spec code did not produce a valid schedule.",
+    tr: "Bu spec kodundaki parametreler geçerli bir liste üretmedi.",
+  },
+  verifyVersionNotice: {
+    en: "This schedule was generated with a different engine version than the one you are verifying on. The result below is reproduced using the engine version recorded in the spec.",
+    tr: "Bu liste, doğrulama yaptığınız sürümden farklı bir motor sürümüyle üretilmiş. Aşağıdaki sonuç, spec içinde kayıtlı motor sürümü kullanılarak yeniden üretilmiştir.",
+  },
+  verifyReadonly: { en: "This page reproduces and compares only — it changes nothing.", tr: "Bu ekran yalnız yeniden üretir ve karşılaştırır — hiçbir şeyi değiştirmez." },
+  verifyReproHeading: { en: "Reproduced schedule", tr: "Yeniden üretilen liste" },
+  verifyOpenTool: { en: "Open the randomization tool", tr: "Randomizasyon aracını aç" },
+  verifyEnginePaper: { en: "Verified engine", tr: "Doğrulanan motor" },
+  verifyHeroLink: { en: "Already have a schedule? Verify it →", tr: "Zaten bir listeniz mi var? Doğrulayın →" },
+  verifyTokenHint: {
+    en: "Required — the long code that begins with TG1. Use “Copy spec code” in the tool, or the spec line in your export/PDF.",
+    tr: "Zorunlu — TG1 ile başlayan uzun kod. Araçtaki “Copy spec code” butonunu ya da çıktı/PDF'teki spec satırını kullanın.",
+  },
+  verifyCodeHint: {
+    en: "Optional cross-check only. The short verification code cannot reproduce a schedule on its own — what gets verified is the TG1 spec code above.",
+    tr: "Yalnız ek kontrol. Kısa doğrulama kodu tek başına bir listeyi yeniden üretemez — doğrulanan şey yukarıdaki TG1 spec kodudur.",
+  },
+  verifyNeedToken: {
+    en: "Enter the full spec code (it starts with TG1) in the box above — the short verification code on its own cannot reproduce the schedule. Get it from “Copy spec code” in the tool, or the spec line in your export/PDF.",
+    tr: "Üstteki kutuya tam spec kodunu (TG1 ile başlar) girin — kısa doğrulama kodu tek başına listeyi yeniden üretemez. Kodu araçtaki “Copy spec code” butonundan ya da çıktı/PDF'teki spec satırından alın.",
+  },
 };
 
 export function tr(lang: Lang, key: keyof typeof D): string {
