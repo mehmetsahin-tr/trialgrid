@@ -6,8 +6,8 @@ import LanguageToggle from "@/app/components/LanguageToggle";
 import { RNG_ALGO, RNG_VERSION } from "./lib/rng";
 import { DESIGNS, DESIGN_ORDER, designPeriods } from "./lib/designs";
 import type { DesignId } from "./lib/designs";
-import { generateSchedule, parseAllocationRatio, BLOCK_OPTIONS } from "./lib/generate";
-import type { GenRow, Method, Stratum } from "./lib/generate";
+import { generateSchedule, parseAllocationRatio, parseStratification, applyStratumSuggestion, STRATUM_SEP, BLOCK_OPTIONS } from "./lib/generate";
+import type { GenRow, Method, Stratum, StratAxis } from "./lib/generate";
 import { canonicalString, sha256Hex, verificationCode } from "./lib/hash";
 import type { AuditMeta } from "./lib/hash";
 import { TOOL_VERSION, TOOL_NAME } from "./lib/meta";
@@ -41,6 +41,49 @@ function cryptoSeed(): number {
   return Math.floor(Math.random() * 0xffffffff);
 }
 
+// localStorage key for the client-side run history (never leaves the device).
+const RUNS_KEY = "trialgrid.randomization.runs.v1";
+
+type OutputMode = "blinded" | "unblinded" | "both";
+
+// Full snapshot of every input needed to reproduce and re-display a run.
+interface RunSnapshot {
+  method: Method;
+  designId: DesignId | "";
+  n: number;
+  groupsRaw: string;
+  seed: number;
+  blockSize: number;
+  allocationRaw: string;
+  studyCode: string;
+  sponsor: string;
+  protocolVersion: string;
+  protocolDate: string;
+  generatedBy: string;
+  checkedBy: string;
+  reserveRaw: string;
+  randPrefix: string;
+  randStartRaw: string;
+  randPad: number;
+  enrollEnabled: boolean;
+  enrollPrefix: string;
+  enrollStartRaw: string;
+  enrollPad: number;
+  mapping: Record<string, TreatmentInfo>;
+  outputMode: OutputMode;
+  strataRaw: string;
+}
+
+interface RunRecord {
+  id: string;
+  savedAt: string;
+  code: string;
+  studyCode: string;
+  summary: string;
+  final: boolean;
+  snapshot: RunSnapshot;
+}
+
 interface Generated {
   rows: GenRow[];
   reserveRows: GenRow[];
@@ -49,6 +92,7 @@ interface Generated {
   periods: number;
   varianceBalanced: boolean;
   strata: string[];
+  axes: StratAxis[];
   meta: AuditMeta;
   generatedAt: string;
   hash: string;
@@ -78,7 +122,7 @@ export default function RandomizationPage() {
   const [enrollStartRaw, setEnrollStartRaw] = useState<string>("1");
   const [enrollPad, setEnrollPad] = useState<number>(3);
   const [mapping, setMapping] = useState<Record<string, TreatmentInfo>>({});
-  const [outputMode, setOutputMode] = useState<"blinded" | "unblinded" | "both">("blinded");
+  const [outputMode, setOutputMode] = useState<OutputMode>("blinded");
   const [strataRaw, setStrataRaw] = useState<string>("");
   const [treatmentOpen, setTreatmentOpen] = useState<boolean>(false);
   const treatmentRef = useRef<HTMLDetailsElement>(null);
@@ -90,10 +134,38 @@ export default function RandomizationPage() {
   const [sponsor, setSponsor] = useState<string>("");
   const [protocolVersion, setProtocolVersion] = useState<string>("");
   const [protocolDate, setProtocolDate] = useState<string>("");
+  const [generatedBy, setGeneratedBy] = useState<string>("");
+  const [checkedBy, setCheckedBy] = useState<string>("");
 
-  const [genError, setGenError] = useState<{ en: string; tr: string; suggestion?: number; validBlocks?: number[] } | null>(null);
+  const [genError, setGenError] = useState<{ en: string; tr: string; suggestion?: number; validBlocks?: number[]; stratum?: string } | null>(null);
   const [result, setResult] = useState<Generated | null>(null);
   const [repro, setRepro] = useState<"idle" | "ok" | "mismatch">("idle");
+  const [ackImbalance, setAckImbalance] = useState<boolean>(false);
+  const [exportGate, setExportGate] = useState<boolean>(false);
+  const balanceRef = useRef<HTMLDivElement>(null);
+  const [runs, setRuns] = useState<RunRecord[]>([]);
+  const runsLoaded = useRef<boolean>(false);
+
+  useEffect(() => {
+    // Load run history from localStorage once on mount.
+    try {
+      const raw = localStorage.getItem(RUNS_KEY);
+      if (raw) setRuns(JSON.parse(raw) as RunRecord[]);
+    } catch {
+      /* corrupt or unavailable storage — start empty */
+    }
+    runsLoaded.current = true;
+  }, []);
+
+  useEffect(() => {
+    // Persist after the initial load (avoid clobbering storage with []).
+    if (!runsLoaded.current) return;
+    try {
+      localStorage.setItem(RUNS_KEY, JSON.stringify(runs));
+    } catch {
+      /* storage full or blocked — history is best-effort */
+    }
+  }, [runs]);
 
   useEffect(() => {
     // Sync the seed input once on mount (initial seed is generated client-side).
@@ -132,6 +204,8 @@ export default function RandomizationPage() {
     setResult(null);
     setGenError(null);
     setRepro("idle");
+    setAckImbalance(false);
+    setExportGate(false);
   }
 
   function generateRandomSeed() {
@@ -160,17 +234,13 @@ export default function RandomizationPage() {
     setMapping((m) => ({ ...m, [g]: { ...getInfo(g, idx), ...patch } }));
   }
 
-  function parseStrata(): Stratum[] {
-    return strataRaw
-      .split(",")
-      .map((tok) => {
-        const [name, cnt] = tok.split(":");
-        return { name: (name ?? "").trim(), n: parseInt((cnt ?? "").trim(), 10) || 0 };
-      })
-      .filter((s) => s.name && s.n > 0);
+  /** Parsed strata for generation; [] when the input is empty or malformed (error surfaced separately). */
+  function stratStrata(): Stratum[] {
+    const p = parseStratification(strataRaw);
+    return "error" in p ? [] : p.strata;
   }
 
-  function buildParams() {
+  function buildParams(strata: Stratum[]) {
     return {
       method,
       drugs: groups,
@@ -180,7 +250,7 @@ export default function RandomizationPage() {
       designId: method === "crossover" ? (designId || undefined) : undefined,
       allocationRatio: method === "parallel" ? allocationRaw : undefined,
       reserve: parseInt(reserveRaw, 10) || 0,
-      strata: parseStrata(),
+      strata,
       randPrefix,
       randStart: parseInt(randStartRaw, 10) || 1,
       randPad,
@@ -191,11 +261,72 @@ export default function RandomizationPage() {
     };
   }
 
-  async function generate() {
+  /**
+   * Apply a stratum-scoped "Try N" suggestion to the stratification input, then
+   * re-run validation so the warning clears — or advances to the next offending
+   * stratum if more remain. Does not generate the schedule (user still clicks Generate).
+   */
+  function applyStrataFix(stratum: string, suggestion: number) {
+    const updated = applyStratumSuggestion(strataRaw, stratum, suggestion);
+    setStrataRaw(updated);
+    setResult(null);
+    setRepro("idle");
+    setAckImbalance(false);
+    setExportGate(false);
+    const plan = parseStratification(updated);
+    if ("error" in plan) {
+      setGenError(plan.error);
+      return;
+    }
+    const res = generateSchedule(buildParams(plan.strata));
+    setGenError(res.ok ? null : res.error);
+  }
+
+  /** Snapshot every input needed to reproduce and re-display the current run. */
+  function collectInputs(): RunSnapshot {
+    return {
+      method, designId, n, groupsRaw, seed, blockSize, allocationRaw,
+      studyCode, sponsor, protocolVersion, protocolDate, generatedBy, checkedBy,
+      reserveRaw, randPrefix, randStartRaw, randPad,
+      enrollEnabled, enrollPrefix, enrollStartRaw, enrollPad,
+      mapping, outputMode, strataRaw,
+    };
+  }
+
+  // Generate from an explicit input snapshot (not component state) so restoring a
+  // saved run reproduces it deterministically regardless of pending setState.
+  async function generateFrom(input: RunSnapshot, save: boolean) {
     setGenError(null);
     setRepro("idle");
+    setAckImbalance(false);
+    setExportGate(false);
 
-    const res = generateSchedule(buildParams());
+    const drugs = input.groupsRaw.split(",").map((s) => s.trim()).filter(Boolean);
+    const stratPlan = parseStratification(input.strataRaw);
+    if ("error" in stratPlan) {
+      setResult(null);
+      setGenError(stratPlan.error);
+      return;
+    }
+
+    const res = generateSchedule({
+      method: input.method,
+      drugs,
+      n: input.n,
+      blockSize: input.blockSize,
+      seed: input.seed,
+      designId: input.method === "crossover" ? (input.designId || undefined) : undefined,
+      allocationRatio: input.method === "parallel" ? input.allocationRaw : undefined,
+      reserve: parseInt(input.reserveRaw, 10) || 0,
+      strata: stratPlan.strata,
+      randPrefix: input.randPrefix,
+      randStart: parseInt(input.randStartRaw, 10) || 1,
+      randPad: input.randPad,
+      enrollEnabled: input.enrollEnabled,
+      enrollPrefix: input.enrollPrefix,
+      enrollStart: parseInt(input.enrollStartRaw, 10) || 1,
+      enrollPad: input.enrollPad,
+    });
     if (!res.ok) {
       setResult(null);
       setGenError(res.error);
@@ -203,17 +334,20 @@ export default function RandomizationPage() {
     }
 
     const meta: AuditMeta = {
-      studyCode: studyCode.trim(),
-      method,
-      designId: method === "crossover" ? designId || undefined : undefined,
-      drugs: [...groups],
-      n,
-      blockSize,
-      seed,
-      allocation: method === "parallel" ? allocationRaw : "balanced",
+      studyCode: input.studyCode.trim(),
+      method: input.method,
+      designId: input.method === "crossover" ? input.designId || undefined : undefined,
+      drugs: [...drugs],
+      n: input.n,
+      blockSize: input.blockSize,
+      seed: input.seed,
+      allocation: input.method === "parallel" ? input.allocationRaw : "balanced",
+      generatedBy: input.generatedBy.trim(),
     };
     const allRows = [...res.rows, ...res.reserveRows];
     const hash = await sha256Hex(canonicalString(meta, allRows));
+    const code = verificationCode(hash);
+    const generatedAt = new Date().toISOString();
 
     setResult({
       rows: res.rows,
@@ -223,16 +357,80 @@ export default function RandomizationPage() {
       periods: res.periods,
       varianceBalanced: res.varianceBalanced,
       strata: res.strata,
+      axes: stratPlan.axes,
       meta,
-      generatedAt: new Date().toISOString(),
+      generatedAt,
       hash,
-      code: verificationCode(hash),
+      code,
     });
+
+    if (save) saveRun(input, code, generatedAt, res.rows.length);
+  }
+
+  async function generate() {
+    await generateFrom(collectInputs(), true);
+  }
+
+  function saveRun(input: RunSnapshot, code: string, savedAt: string, mainCount: number) {
+    const designLabel = input.method === "parallel"
+      ? "Parallel"
+      : (input.designId ? DESIGNS[input.designId].label.en : "Crossover");
+    const summary = `${designLabel} · N=${mainCount} · seed ${input.seed}`;
+    setRuns((prev) => {
+      const prior = prev.find((r) => r.code === code);
+      const rec: RunRecord = {
+        id: `${savedAt}-${code}`,
+        savedAt,
+        code,
+        studyCode: input.studyCode.trim(),
+        summary,
+        final: prior?.final ?? false, // preserve a final flag when re-saving identical params
+        snapshot: input,
+      };
+      return [rec, ...prev.filter((r) => r.code !== code)].slice(0, 50);
+    });
+  }
+
+  function restoreRun(run: RunRecord) {
+    const s = run.snapshot;
+    setMethod(s.method); setDesignId(s.designId);
+    setN(s.n); setNRaw(String(s.n)); setGroupsRaw(s.groupsRaw);
+    setSeed(s.seed); setSeedRaw(String(s.seed)); setBlockSize(s.blockSize); setAllocationRaw(s.allocationRaw);
+    setStudyCode(s.studyCode); setSponsor(s.sponsor); setProtocolVersion(s.protocolVersion); setProtocolDate(s.protocolDate);
+    setGeneratedBy(s.generatedBy); setCheckedBy(s.checkedBy); setReserveRaw(s.reserveRaw);
+    setRandPrefix(s.randPrefix); setRandStartRaw(s.randStartRaw); setRandPad(s.randPad);
+    setEnrollEnabled(s.enrollEnabled); setEnrollPrefix(s.enrollPrefix); setEnrollStartRaw(s.enrollStartRaw); setEnrollPad(s.enrollPad);
+    setMapping(s.mapping); setOutputMode(s.outputMode); setStrataRaw(s.strataRaw);
+    generateFrom(s, false);
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function toggleFinal(id: string) {
+    setRuns((prev) => {
+      const target = prev.find((r) => r.id === id);
+      if (!target) return prev;
+      const makeFinal = !target.final;
+      // One final delivery per study code: marking one unmarks its siblings.
+      return prev.map((r) => {
+        if (r.id === id) return { ...r, final: makeFinal };
+        if (makeFinal && r.studyCode === target.studyCode) return { ...r, final: false };
+        return r;
+      });
+    });
+  }
+
+  function deleteRun(id: string) {
+    setRuns((prev) => prev.filter((r) => r.id !== id));
+  }
+
+  function clearHistory() {
+    if (typeof window !== "undefined" && !window.confirm(tr(lang, "histClearConfirm"))) return;
+    setRuns([]);
   }
 
   async function reproCheck() {
     if (!result) return;
-    const res = generateSchedule(buildParams());
+    const res = generateSchedule(buildParams(stratStrata()));
     if (!res.ok) {
       setRepro("mismatch");
       return;
@@ -326,6 +524,8 @@ export default function RandomizationPage() {
     if (sponsor.trim()) rows.push([tr(lang, "mSponsor"), sponsor.trim()]);
     if (protocolVersion.trim() || protocolDate.trim())
       rows.push([tr(lang, "mProtocol"), [protocolVersion.trim(), protocolDate.trim()].filter(Boolean).join(" · ")]);
+    if ((result.meta.generatedBy ?? "").trim()) rows.push([tr(lang, "mGeneratedBy"), (result.meta.generatedBy ?? "").trim()]);
+    if (checkedBy.trim()) rows.push([tr(lang, "mCheckedBy"), checkedBy.trim()]);
     rows.push([tr(lang, "mDesign"), method === "parallel" ? tr(lang, "parallel") : design?.label[lang] ?? designId]);
     rows.push([tr(lang, "mTreatments"), `${groups.join(", ")} (${groups.length})`]);
     rows.push([tr(lang, "mSequences"), `${result.sequenceLabels.join(", ")} (${seqCount})`]);
@@ -335,7 +535,12 @@ export default function RandomizationPage() {
       method === "parallel" ? result.meta.allocation : seqCounts.join(" / "),
     ]);
     if (result.reserveRows.length) rows.push([tr(lang, "reserveSubjects"), String(result.reserveRows.length)]);
-    if (result.strata.length) rows.push([tr(lang, "mStratification"), result.strata.join(", ")]);
+    if (result.strata.length) {
+      const stratDesc = result.axes.length
+        ? `${result.axes.map((a) => `${a.name} (${a.levels.join(", ")})`).join(" × ")} · ${result.rows.length / result.strata.length}/${lang === "en" ? "cell" : "hücre"}`
+        : result.strata.join(", ");
+      rows.push([tr(lang, "mStratification"), stratDesc]);
+    }
     rows.push([tr(lang, "mBlock"), String(result.meta.blockSize)]);
     rows.push([tr(lang, "mSeed"), String(result.meta.seed)]);
     rows.push([tr(lang, "mAlgo"), `${RNG_ALGO} v${RNG_VERSION}`]);
@@ -348,13 +553,27 @@ export default function RandomizationPage() {
   // Whether the on-screen / primary schedule reveals Test/Reference identity.
   const showDecode = outputMode !== "blinded" && mappingFilled();
 
+  // Finalize gate: refuse to export an imbalanced schedule until acknowledged.
+  function guardExport(): boolean {
+    const r = balanceReview();
+    if (r && !r.balanced && !ackImbalance) {
+      setExportGate(true);
+      balanceRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return false;
+    }
+    setExportGate(false);
+    return true;
+  }
+
   function exportCSV() {
     if (!result) {
       alert(tr(lang, "selectMethodFirst"));
       return;
     }
+    if (!guardExport()) return;
     const comments = auditMatrix().map(([k, v]) => `# ${k}: ${v}`).join("\r\n");
-    let csv = `${comments}\r\n\r\n${toCSV(scheduleMatrix(outputMode === "unblinded"))}\r\n`;
+    const integrity = `# ${tr(lang, "integrityTitle")}: ${tr(lang, "integrityStatement")}`;
+    let csv = `${comments}\r\n${integrity}\r\n\r\n${toCSV(scheduleMatrix(outputMode === "unblinded"))}\r\n`;
     if (showDecode) {
       csv += `\r\n# ${tr(lang, "decodeTitle")} — ${tr(lang, "decodeIntro")}\r\n${toCSV(decodeMatrix())}\r\n`;
     }
@@ -366,9 +585,11 @@ export default function RandomizationPage() {
       alert(tr(lang, "selectMethodFirst"));
       return;
     }
+    if (!guardExport()) return;
     const sheets = [{ name: tr(lang, "schedule"), rows: scheduleMatrix(outputMode === "unblinded") }];
     if (showDecode) sheets.push({ name: tr(lang, "decodeSheet"), rows: decodeMatrix() });
-    sheets.push({ name: tr(lang, "auditSheet"), rows: auditMatrix() });
+    const auditRows: Cell[][] = [...auditMatrix(), [], [tr(lang, "integrityTitle"), tr(lang, "integrityStatement")]];
+    sheets.push({ name: tr(lang, "auditSheet"), rows: auditRows });
     const bytes = buildXlsx(sheets);
     download(
       `randomization_${result.code}.xlsx`,
@@ -382,6 +603,7 @@ export default function RandomizationPage() {
       alert(tr(lang, "selectMethodFirst"));
       return;
     }
+    if (!guardExport()) return;
     const { default: jsPDF } = await import("jspdf");
     const { default: autoTable } = await import("jspdf-autotable");
     const doc = new jsPDF();
@@ -426,6 +648,19 @@ export default function RandomizationPage() {
         doc.text(`${k}: ${v}`, 14, y);
         y += 4.2;
       }
+      // Integrity statement — the architectural answer to "any manual changes".
+      y += 2;
+      doc.setFont("times", "italic");
+      doc.setFontSize(7.5);
+      doc.setTextColor(70, 70, 70);
+      const stmt = `${tr(lang, "integrityTitle")}: ${tr(lang, "integrityStatement")}`;
+      const wrapped = doc.splitTextToSize(stmt, doc.internal.pageSize.width - 28) as string[];
+      for (const line of wrapped) {
+        if (y > 282) { doc.addPage(); y = 20; }
+        doc.text(line, 14, y);
+        y += 3.8;
+      }
+      doc.setFont("courier", "normal");
       doc.setTextColor(0, 0, 0);
       return y + 4;
     };
@@ -457,14 +692,20 @@ export default function RandomizationPage() {
       });
       const y = ((doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 100) + 12;
       const sigDate = tr(lang, "sigDate");
+      // Auto-fill the name onto the signature line when the operator was recorded.
+      const sigLine = (label: string, name: string) => {
+        const filled = name.trim();
+        const nameField = filled ? filled.padEnd(22, " ") : "______________________";
+        return `${label}: ${nameField}    ${sigDate}: ____________`;
+      };
       writeLines(
         [
           "— Signatures —",
-          `${tr(lang, "sigPrepared")}: ______________________    ${sigDate}: ____________`,
+          sigLine(tr(lang, "sigPrepared"), generatedBy),
           "",
-          `${tr(lang, "sigChecked")}: ______________________    ${sigDate}: ____________`,
+          sigLine(tr(lang, "sigChecked"), checkedBy),
           "",
-          `${tr(lang, "sigApproved")}: ______________________    ${sigDate}: ____________`,
+          sigLine(tr(lang, "sigApproved"), ""),
         ],
         y
       );
@@ -486,9 +727,10 @@ export default function RandomizationPage() {
       });
       const y = ((doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 100) + 12;
       const sigDate = tr(lang, "sigDate");
+      const preparedName = generatedBy.trim() ? generatedBy.trim().padEnd(22, " ") : "______________________";
       writeLines(
         [
-          `${tr(lang, "sigPrepared")}: ______________________    ${sigDate}: ____________`,
+          `${tr(lang, "sigPrepared")}: ${preparedName}    ${sigDate}: ____________`,
           "",
           `${tr(lang, "sigSignature")} / Seal: ______________________________________`,
         ],
@@ -518,21 +760,66 @@ export default function RandomizationPage() {
     doc.save(`randomization_${result.code}.pdf`);
   }
 
-  // --- balance summary ---
-  function balanceData() {
+  // --- balance review (finalize gate) ---
+  interface BalCell { seq: string; n: number; target: number; dev: number }
+  interface BalGroup { label: string; total: number; cells: BalCell[]; balanced: boolean }
+
+  function balanceReview() {
     if (!result) return null;
-    const seqCounts: Record<string, number> = {};
-    const reserveCounts: Record<string, number> = {};
-    for (const row of result.rows) seqCounts[row.sequenceLabel] = (seqCounts[row.sequenceLabel] ?? 0) + 1;
-    for (const row of result.reserveRows) reserveCounts[row.sequenceLabel] = (reserveCounts[row.sequenceLabel] ?? 0) + 1;
+    const labels = result.sequenceLabels;
+    const weights = method === "parallel"
+      ? (parseAllocationRatio(result.meta.allocation, labels.length) ?? labels.map(() => 1))
+      : labels.map(() => 1);
+    const sumW = weights.reduce((a, b) => a + b, 0) || 1;
+
+    const makeGroup = (label: string, rows: GenRow[]): BalGroup => {
+      const counts: Record<string, number> = {};
+      for (const row of rows) counts[row.sequenceLabel] = (counts[row.sequenceLabel] ?? 0) + 1;
+      const total = rows.length;
+      const cells = labels.map((s, i) => {
+        const n = counts[s] ?? 0;
+        const target = (total * weights[i]) / sumW;
+        return { seq: s, n, target, dev: n - target };
+      });
+      const balanced = cells.every((c) => Math.abs(c.dev) < 1e-9);
+      return { label, total, cells, balanced };
+    };
+
+    const overallLabel = lang === "en" ? "Overall" : "Genel";
+    const groups: BalGroup[] = result.strata.length
+      ? result.strata.map((s) => makeGroup(s, result.rows.filter((r) => r.stratum === s)))
+      : [makeGroup(overallLabel, result.rows)];
+
+    // Per-axis marginal balance (multi-axis only): each level summed over the other axes.
+    const axisViews = result.axes.map((axis, ai) => ({
+      name: axis.name,
+      levels: axis.levels.map((lvl) =>
+        makeGroup(lvl, result.rows.filter((r) => (r.stratum ?? "").split(STRATUM_SEP)[ai] === lvl))
+      ),
+    }));
+
+    const reserve = result.reserveRows.length ? makeGroup(tr(lang, "bReserve"), result.reserveRows) : null;
+
+    // Per-period treatment distribution (crossover only).
     const perPeriod: Record<string, number>[] = Array.from({ length: result.periods }, () => ({}));
     for (const row of result.rows)
       row.treatments.forEach((t, pi) => {
         perPeriod[pi][t] = (perPeriod[pi][t] ?? 0) + 1;
       });
-    return { seqCounts, reserveCounts, perPeriod };
+
+    // Human-readable flags for each imbalanced group.
+    const unblinded = outputMode === "unblinded";
+    const flagLabel = (g: BalGroup) =>
+      `${g.label}: ${g.cells.map((c) => `${unblinded ? c.seq.split("").map(roleInitial).join("") : c.seq}=${c.n}`).join(", ")}`;
+    const flags: string[] = [];
+    for (const g of groups) if (!g.balanced) flags.push(flagLabel(g));
+    if (reserve && !reserve.balanced) flags.push(flagLabel(reserve));
+
+    const balanced = groups.every((g) => g.balanced) && (!reserve || reserve.balanced);
+    return { labels, groups, axisViews, reserve, perPeriod, balanced, flags };
   }
-  const balance = balanceData();
+  const balance = balanceReview();
+  const imbalance = !!balance && !balance.balanced;
 
   const unblindedView = outputMode === "unblinded";
   const showSeqCol = method === "crossover" && !!result;
@@ -707,6 +994,19 @@ export default function RandomizationPage() {
                 <input type="text" value={protocolDate} onChange={(e) => setProtocolDate(e.target.value)} placeholder="2026-01-15" />
               </div>
             </div>
+            <div className="field-grid cols-2" style={{ marginTop: "1rem" }}>
+              <div>
+                <label>{tr(lang, "generatedBy")}</label>
+                <input type="text" value={generatedBy} onChange={(e) => { setGeneratedBy(e.target.value); clearOutput(); }} placeholder={tr(lang, "generatedByPh")} />
+                <p style={{ marginTop: ".3rem", fontSize: ".66rem", color: "var(--muted, #7a7868)", fontFamily: "var(--font-jetbrains-mono)" }}>
+                  {tr(lang, "generatedByHint")}
+                </p>
+              </div>
+              <div>
+                <label>{tr(lang, "checkedByField")}</label>
+                <input type="text" value={checkedBy} onChange={(e) => setCheckedBy(e.target.value)} placeholder={tr(lang, "checkedByPh")} />
+              </div>
+            </div>
           </div>
 
           {/* Group: Numbering & blinding (optional) */}
@@ -824,9 +1124,6 @@ export default function RandomizationPage() {
 
           <div className="btn-row" style={{ flexWrap: "wrap" }}>
             <button className="btn" onClick={generate}>{tr(lang, "generate")}</button>
-            <button className="btn ghost" onClick={exportPDF}>{tr(lang, "exportPdf")}</button>
-            <button className="btn ghost" onClick={exportCSV}>{tr(lang, "exportCsv")}</button>
-            <button className="btn ghost" onClick={exportXLSX}>{tr(lang, "exportXlsx")}</button>
           </div>
 
           {genError && (
@@ -836,7 +1133,16 @@ export default function RandomizationPage() {
                 <>
                   {" "}
                   <button
-                    onClick={() => { setN(genError.suggestion as number); setNRaw(String(genError.suggestion)); }}
+                    aria-label={`${tr(lang, "applySuggested")} ${genError.suggestion}`}
+                    onClick={() => {
+                      const s = genError.suggestion as number;
+                      if (genError.stratum) {
+                        applyStrataFix(genError.stratum, s);
+                      } else {
+                        setN(s);
+                        setNRaw(String(s));
+                      }
+                    }}
                     style={{ background: "none", border: "none", color: "#c85a40", textDecoration: "underline", cursor: "pointer", fontFamily: "inherit", fontSize: "inherit", padding: 0 }}
                   >
                     {tr(lang, "suggestionPrefix")} {genError.suggestion}
@@ -946,58 +1252,132 @@ export default function RandomizationPage() {
                 </div>
               )}
 
-              {/* Balance summary */}
+              {/* Balance review — finalize gate */}
               {balance && (
-                <div style={{ marginTop: "1.5rem", border: "1px solid var(--rule, #e8e4d8)", borderRadius: "6px", padding: "1rem 1.25rem" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: ".75rem" }}>
-                    <strong style={{ fontFamily: "var(--font-jetbrains-mono)", textTransform: "uppercase", letterSpacing: ".05em", fontSize: ".7rem" }}>{tr(lang, "balanceTitle")}</strong>
-                    {result.varianceBalanced && method === "crossover" && (
-                      <span style={{ color: "#5a7a3a", fontFamily: "var(--font-jetbrains-mono)", fontSize: ".68rem" }}>✓ {tr(lang, "varianceBalanced")}</span>
-                    )}
+                <div ref={balanceRef} style={{ marginTop: "1.5rem", border: `1px solid ${imbalance ? "var(--warn)" : "var(--rule, #e8e4d8)"}`, borderRadius: "6px", padding: "1rem 1.25rem", background: imbalance ? "var(--warn-soft)" : undefined }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: ".5rem", gap: "1rem", flexWrap: "wrap" }}>
+                    <strong style={{ fontFamily: "var(--font-jetbrains-mono)", textTransform: "uppercase", letterSpacing: ".05em", fontSize: ".7rem" }}>{tr(lang, "balanceReviewTitle")}</strong>
+                    <span style={{ fontFamily: "var(--font-jetbrains-mono)", fontSize: ".68rem", color: imbalance ? "var(--warn)" : "#5a7a3a" }}>
+                      {imbalance ? `⚠ ${tr(lang, "imbalanceDetected")}` : `✓ ${tr(lang, "balancedAll")}`}
+                    </span>
                   </div>
-                  <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap", fontSize: ".75rem" }}>
+                  <p style={{ margin: "0 0 .75rem", fontSize: ".7rem", color: "var(--muted, #7a7868)", fontFamily: "var(--font-jetbrains-mono)" }}>{tr(lang, "reviewIntro")}</p>
+
+                  {/* Per-stratum / overall distribution (n per sequence, target on hover) */}
+                  <div style={{ overflowX: "auto" }}>
                     <table style={{ fontSize: ".75rem" }}>
                       <thead>
                         <tr>
-                          <th style={{ textAlign: "left" }}>{tr(lang, "bSequence")}</th>
+                          <th style={{ textAlign: "left" }}>{stratified ? tr(lang, "stratumCol") : ""}</th>
+                          {balance.labels.map((s) => <th key={s} style={{ textAlign: "right", fontFamily: "var(--font-jetbrains-mono)" }}>{unblindedView ? s.split("").map(roleInitial).join("") : s}</th>)}
                           <th style={{ textAlign: "right" }}>{tr(lang, "bN")}</th>
-                          {result.reserveRows.length > 0 && <th style={{ textAlign: "right" }}>{tr(lang, "bReserve")}</th>}
                         </tr>
                       </thead>
                       <tbody>
-                        {result.sequenceLabels.map((s) => (
-                          <tr key={s}>
-                            <td style={{ fontFamily: "var(--font-jetbrains-mono)" }}>{unblindedView ? s.split("").map(roleInitial).join("") : s}</td>
-                            <td style={{ textAlign: "right" }}>{balance.seqCounts[s] ?? 0}</td>
-                            {result.reserveRows.length > 0 && <td style={{ textAlign: "right" }}>{balance.reserveCounts[s] ?? 0}</td>}
+                        {balance.groups.map((g) => (
+                          <tr key={g.label}>
+                            <td style={{ fontFamily: "var(--font-jetbrains-mono)", fontSize: ".7rem" }}>{g.label}</td>
+                            {g.cells.map((c) => {
+                              const off = Math.abs(c.dev) >= 1e-9;
+                              return <td key={c.seq} title={`${tr(lang, "bTarget")}: ${c.target % 1 === 0 ? c.target : c.target.toFixed(1)}`} style={{ textAlign: "right", color: off ? "var(--warn)" : undefined, fontWeight: off ? 700 : undefined }}>{c.n}</td>;
+                            })}
+                            <td style={{ textAlign: "right", color: "var(--muted, #7a7868)" }}>{g.total}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
-                    {method === "crossover" && (
-                      <div>
-                        <div style={{ fontSize: ".68rem", color: "var(--muted, #7a7868)", marginBottom: ".35rem", fontFamily: "var(--font-jetbrains-mono)" }}>{tr(lang, "bPerPeriod")}</div>
-                        <table style={{ fontSize: ".75rem" }}>
-                          <thead>
-                            <tr>
-                              <th style={{ textAlign: "left" }}>{tr(lang, "period")}</th>
-                              {groups.map((g) => <th key={g} style={{ textAlign: "right" }}>{g}</th>)}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {balance.perPeriod.map((dist, pi) => (
-                              <tr key={pi}>
-                                <td>{pi + 1}</td>
-                                {groups.map((g) => <td key={g} style={{ textAlign: "right" }}>{dist[g] ?? 0}</td>)}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
                   </div>
+
+                  {/* Per-axis marginals (multi-axis) */}
+                  {balance.axisViews.length > 0 && (
+                    <div style={{ marginTop: "1rem" }}>
+                      <div style={{ fontSize: ".68rem", color: "var(--muted, #7a7868)", marginBottom: ".35rem", fontFamily: "var(--font-jetbrains-mono)" }}>{tr(lang, "byAxis")}</div>
+                      <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap" }}>
+                        {balance.axisViews.map((av) => (
+                          <table key={av.name} style={{ fontSize: ".72rem" }}>
+                            <thead>
+                              <tr>
+                                <th style={{ textAlign: "left" }}>{av.name}</th>
+                                {balance.labels.map((s) => <th key={s} style={{ textAlign: "right", fontFamily: "var(--font-jetbrains-mono)" }}>{unblindedView ? s.split("").map(roleInitial).join("") : s}</th>)}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {av.levels.map((lv) => (
+                                <tr key={lv.label}>
+                                  <td>{lv.label}</td>
+                                  {lv.cells.map((c) => {
+                                    const off = Math.abs(c.dev) >= 1e-9;
+                                    return <td key={c.seq} style={{ textAlign: "right", color: off ? "var(--warn)" : undefined, fontWeight: off ? 700 : undefined }}>{c.n}</td>;
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Per-period treatment distribution (crossover) */}
+                  {method === "crossover" && (
+                    <div style={{ marginTop: "1rem" }}>
+                      <div style={{ fontSize: ".68rem", color: "var(--muted, #7a7868)", marginBottom: ".35rem", fontFamily: "var(--font-jetbrains-mono)" }}>{tr(lang, "bPerPeriod")}</div>
+                      <table style={{ fontSize: ".75rem" }}>
+                        <thead>
+                          <tr>
+                            <th style={{ textAlign: "left" }}>{tr(lang, "period")}</th>
+                            {groups.map((g) => <th key={g} style={{ textAlign: "right" }}>{unblindedView ? roleInitial(g) : g}</th>)}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {balance.perPeriod.map((dist, pi) => (
+                            <tr key={pi}>
+                              <td>{pi + 1}</td>
+                              {groups.map((g) => <td key={g} style={{ textAlign: "right" }}>{dist[g] ?? 0}</td>)}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {result.reserveRows.length > 0 && balance.reserve && (
+                    <p style={{ margin: ".75rem 0 0", fontSize: ".7rem", color: "var(--muted, #7a7868)", fontFamily: "var(--font-jetbrains-mono)" }}>
+                      {tr(lang, "bReserve")}: {balance.reserve.cells.map((c) => `${unblindedView ? c.seq.split("").map(roleInitial).join("") : c.seq}=${c.n}`).join(", ")}
+                    </p>
+                  )}
+
+                  {result.varianceBalanced && method === "crossover" && (
+                    <p style={{ margin: ".5rem 0 0", color: "#5a7a3a", fontFamily: "var(--font-jetbrains-mono)", fontSize: ".68rem" }}>✓ {tr(lang, "varianceBalanced")}</p>
+                  )}
+
+                  {/* Imbalance flags + acknowledge-before-finalize */}
+                  {imbalance && (
+                    <div style={{ marginTop: ".9rem", paddingTop: ".75rem", borderTop: "1px solid var(--warn)" }}>
+                      {balance.flags.map((f, i) => (
+                        <div key={i} style={{ fontSize: ".72rem", color: "var(--warn)", fontFamily: "var(--font-jetbrains-mono)" }}>⚠ {f}</div>
+                      ))}
+                      <label style={{ display: "flex", alignItems: "center", gap: ".5rem", marginTop: ".6rem", cursor: "pointer", fontFamily: "var(--font-inter, system-ui)", fontSize: ".8rem" }}>
+                        <input type="checkbox" checked={ackImbalance} onChange={(e) => { setAckImbalance(e.target.checked); if (e.target.checked) setExportGate(false); }} />
+                        {tr(lang, "ackImbalanceLabel")}
+                      </label>
+                      {exportGate && !ackImbalance && (
+                        <div style={{ marginTop: ".5rem", fontSize: ".72rem", color: "var(--warn)", fontWeight: 700, fontFamily: "var(--font-jetbrains-mono)" }}>⚠ {tr(lang, "exportGateMsg")}</div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
+
+              {/* Export (finalize) */}
+              <div style={{ marginTop: "1.5rem" }}>
+                <div style={{ fontFamily: "var(--font-jetbrains-mono)", textTransform: "uppercase", letterSpacing: ".05em", fontSize: ".64rem", color: "var(--muted, #7a7868)", marginBottom: ".5rem" }}>{tr(lang, "exportTitle")}</div>
+                <div className="btn-row" style={{ flexWrap: "wrap" }}>
+                  <button className="btn ghost" onClick={exportPDF}>{tr(lang, "exportPdf")}</button>
+                  <button className="btn ghost" onClick={exportCSV}>{tr(lang, "exportCsv")}</button>
+                  <button className="btn ghost" onClick={exportXLSX}>{tr(lang, "exportXlsx")}</button>
+                </div>
+              </div>
 
               {/* Audit & reproducibility */}
               <div style={{ marginTop: "1.5rem", border: "1px solid var(--rule, #e8e4d8)", borderRadius: "6px", padding: "1rem 1.25rem", fontSize: ".75rem", fontFamily: "var(--font-inter, system-ui)", background: "var(--paper-2, #fff)" }}>
@@ -1017,11 +1397,83 @@ export default function RandomizationPage() {
                   </div>
                 </div>
                 <p style={{ marginTop: ".5rem", color: "var(--muted, #7a7868)", fontSize: ".66rem", fontFamily: "var(--font-jetbrains-mono)" }}>{tr(lang, "reproHint")}</p>
+                <div style={{ marginTop: ".75rem", paddingTop: ".6rem", borderTop: "1px solid var(--rule, #e8e4d8)" }}>
+                  <div style={{ fontFamily: "var(--font-jetbrains-mono)", textTransform: "uppercase", letterSpacing: ".05em", fontSize: ".64rem", color: "var(--muted, #7a7868)", marginBottom: ".3rem" }}>🔒 {tr(lang, "integrityTitle")}</div>
+                  <p style={{ margin: 0, fontSize: ".72rem", lineHeight: 1.55, color: "var(--ink, #2a2722)" }}>{tr(lang, "integrityStatement")}</p>
+                </div>
               </div>
             </>
           )}
         </div>
       </div>
+
+      {/* Run history (client-side versioning, localStorage only) */}
+      {runs.length > 0 && (
+        <div className="panel" style={{ marginTop: "2rem" }}>
+          <div className="panel-head">
+            <h2>{tr(lang, "historyTitle")}</h2>
+            <span className="tag">{tr(lang, "historyTag")}</span>
+          </div>
+          <div className="panel-body">
+            <p style={{ margin: "0 0 1rem", fontSize: ".72rem", color: "var(--muted, #7a7868)", fontFamily: "var(--font-jetbrains-mono)", lineHeight: 1.55 }}>
+              🔒 {tr(lang, "historyPrivacy")}
+            </p>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", fontSize: ".74rem" }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: "left" }}>{tr(lang, "histWhen")}</th>
+                    <th style={{ textAlign: "left" }}>{tr(lang, "histStudy")}</th>
+                    <th style={{ textAlign: "left" }}>{tr(lang, "histSummary")}</th>
+                    <th style={{ textAlign: "left" }}>{tr(lang, "mVerification")}</th>
+                    <th style={{ textAlign: "center" }}>{tr(lang, "histFinal")}</th>
+                    <th style={{ textAlign: "right" }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {runs.map((r) => (
+                    <tr key={r.id} style={r.final ? { background: "rgba(90,122,58,0.07)" } : undefined}>
+                      <td style={{ whiteSpace: "nowrap" }}>{new Date(r.savedAt).toLocaleString(lang === "tr" ? "tr-TR" : "en-GB")}</td>
+                      <td>{r.studyCode || "—"}</td>
+                      <td style={{ fontFamily: "var(--font-jetbrains-mono)", fontSize: ".7rem" }}>{r.summary}</td>
+                      <td><code style={{ fontFamily: "var(--font-jetbrains-mono)", fontSize: ".72rem" }}>{r.code}</code></td>
+                      <td style={{ textAlign: "center" }}>
+                        <button
+                          onClick={() => toggleFinal(r.id)}
+                          title={tr(lang, "histMarkFinal")}
+                          aria-label={tr(lang, "histMarkFinal")}
+                          style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1rem", color: r.final ? "#5a7a3a" : "var(--muted, #7a7868)", padding: 0 }}
+                        >
+                          {r.final ? "★" : "☆"}
+                        </button>
+                      </td>
+                      <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                        <button
+                          onClick={() => restoreRun(r)}
+                          style={{ background: "none", border: "none", color: "var(--accent, #2b4a6f)", textDecoration: "underline", cursor: "pointer", fontFamily: "var(--font-jetbrains-mono)", fontSize: ".72rem", padding: 0, marginRight: ".75rem" }}
+                        >
+                          {tr(lang, "histRestore")}
+                        </button>
+                        <button
+                          onClick={() => deleteRun(r.id)}
+                          title={tr(lang, "histDelete")}
+                          aria-label={tr(lang, "histDelete")}
+                          style={{ background: "none", border: "none", color: "var(--muted, #7a7868)", cursor: "pointer", fontSize: ".8rem", padding: 0 }}
+                        >
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ marginTop: "1rem" }}>
+              <button className="btn ghost" onClick={clearHistory}>{tr(lang, "histClear")}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Methodology & validation (static reference) */}
       <div className="panel" style={{ marginTop: "2rem" }}>

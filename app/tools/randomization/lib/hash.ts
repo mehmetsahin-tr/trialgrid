@@ -16,6 +16,13 @@ export interface AuditMeta {
   blockSize: number;
   seed: number;
   allocation: string;
+  /**
+   * Operator who generated the schedule. Included in the canonical hash string
+   * ONLY when non-empty, so the name itself becomes tamper-evident (changing it
+   * changes the verification code) while pre-existing schedules generated
+   * without an operator name keep their original code.
+   */
+  generatedBy?: string;
 }
 
 /**
@@ -23,7 +30,7 @@ export interface AuditMeta {
  * Order is fixed so the same inputs always serialize identically across runs.
  */
 export function canonicalString(meta: AuditMeta, rows: GenRow[]): string {
-  const header = [
+  const parts = [
     `tool=${TOOL_VERSION}`,
     `rng=${RNG_ALGO}@${RNG_VERSION}`,
     `study=${meta.studyCode}`,
@@ -34,7 +41,12 @@ export function canonicalString(meta: AuditMeta, rows: GenRow[]): string {
     `block=${meta.blockSize}`,
     `seed=${meta.seed}`,
     `alloc=${meta.allocation}`,
-  ].join("|");
+  ];
+  // Append the operator name only when present, so schedules generated without
+  // one keep their original verification code (backwards-compatible).
+  const generatedBy = (meta.generatedBy ?? "").trim();
+  if (generatedBy) parts.push(`by=${generatedBy}`);
+  const header = parts.join("|");
   const body = rows
     .map(
       (row) =>

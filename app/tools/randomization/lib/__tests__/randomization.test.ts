@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { mulberry32, RNG_ALGO, RNG_VERSION } from "../rng.ts";
-import { generateSchedule } from "../generate.ts";
+import { generateSchedule, parseStratification, applyStratumSuggestion } from "../generate.ts";
 import { DESIGNS } from "../designs.ts";
 import { canonicalString, sha256Hex, verificationCode } from "../hash.ts";
 import { buildXlsx } from "../xlsx.ts";
@@ -52,6 +52,39 @@ test("2x2x2 schedule is reproducible (known answer + verification code)", async 
   assert.equal(code, "DA0579E4E3016ECC");
 });
 
+test("generatedBy is tamper-evident but backwards-compatible in the hash", async () => {
+  const base = {
+    studyCode: "",
+    method: "crossover",
+    designId: "2x2x2",
+    drugs: ["T", "R"],
+    n: 8,
+    blockSize: 4,
+    seed: 12345,
+    allocation: "balanced",
+  };
+  const res = generateSchedule({
+    method: "crossover" as const,
+    designId: "2x2x2" as const,
+    drugs: ["T", "R"],
+    n: 8,
+    blockSize: 4,
+    seed: 12345,
+  });
+  assert.ok(res.ok);
+  // Empty / absent generatedBy keeps the original pinned verification code.
+  const noName = verificationCode(await sha256Hex(canonicalString(base, res.rows)));
+  assert.equal(noName, "DA0579E4E3016ECC");
+  const emptyName = verificationCode(await sha256Hex(canonicalString({ ...base, generatedBy: "" }, res.rows)));
+  assert.equal(emptyName, "DA0579E4E3016ECC");
+  // A non-empty name changes the code (tamper-evident on the operator identity).
+  const withName = verificationCode(await sha256Hex(canonicalString({ ...base, generatedBy: "M. Şahin" }, res.rows)));
+  assert.notEqual(withName, "DA0579E4E3016ECC");
+  // ...and is deterministic for the same name.
+  const withName2 = verificationCode(await sha256Hex(canonicalString({ ...base, generatedBy: "M. Şahin" }, res.rows)));
+  assert.equal(withName, withName2);
+});
+
 test("stratified randomization balances within each stratum", () => {
   const res = generateSchedule({
     method: "crossover",
@@ -74,6 +107,114 @@ test("stratified randomization balances within each stratum", () => {
   assert.deepEqual(counts, { Male: { TR: 4, RT: 4 }, Female: { TR: 4, RT: 4 } });
   // continuous numbering across strata
   assert.equal(res.rows[8].subjectId, "009");
+});
+
+test("parseStratification: legacy single-axis name:n", () => {
+  const p = parseStratification("Male:12, Female:8");
+  assert.ok(!("error" in p));
+  assert.equal(p.multiAxis, false);
+  assert.deepEqual(p.strata, [{ name: "Male", n: 12 }, { name: "Female", n: 8 }]);
+  assert.deepEqual(p.axes, []);
+});
+
+test("parseStratification: multi-axis factorial cross-product", () => {
+  const p = parseStratification("Site: A, B, C | Sex: M, F | n: 8");
+  assert.ok(!("error" in p));
+  assert.equal(p.multiAxis, true);
+  assert.equal(p.perCell, 8);
+  assert.equal(p.strata.length, 6); // 3 × 2
+  assert.deepEqual(p.strata.map((s) => s.name), [
+    "A · M", "A · F", "B · M", "B · F", "C · M", "C · F",
+  ]);
+  assert.ok(p.strata.every((s) => s.n === 8));
+  assert.deepEqual(p.axes.map((a) => a.name), ["Site", "Sex"]);
+});
+
+test("parseStratification: multi-axis without count is a clear error", () => {
+  const p = parseStratification("Site: A, B | Sex: M, F");
+  assert.ok("error" in p);
+});
+
+test("parseStratification: duplicate axis is rejected", () => {
+  const p = parseStratification("Site: A, B | Site: C, D | n: 4");
+  assert.ok("error" in p);
+});
+
+test("multi-axis strata generate balanced within every cell", () => {
+  const plan = parseStratification("Site: A, B | Sex: M, F | n: 8");
+  assert.ok(!("error" in plan));
+  const res = generateSchedule({
+    method: "crossover",
+    designId: "2x2x2",
+    drugs: ["T", "R"],
+    n: 0,
+    blockSize: 4,
+    seed: 42,
+    strata: plan.strata,
+  });
+  assert.ok(res.ok);
+  assert.equal(res.rows.length, 32); // 4 cells × 8
+  const counts: Record<string, Record<string, number>> = {};
+  for (const row of res.rows) {
+    const s = row.stratum as string;
+    counts[s] = counts[s] ?? {};
+    counts[s][row.sequenceLabel] = (counts[s][row.sequenceLabel] ?? 0) + 1;
+  }
+  for (const s of ["A · M", "A · F", "B · M", "B · F"]) {
+    assert.deepEqual(counts[s], { TR: 4, RT: 4 }, `cell ${s} balanced`);
+  }
+});
+
+test("stratum-scoped error tags the offending stratum + suggestion", () => {
+  const plan = parseStratification("Site: A, B, C | n: 7");
+  assert.ok(!("error" in plan));
+  const res = generateSchedule({
+    method: "crossover",
+    designId: "2x2x2",
+    drugs: ["A", "B"],
+    n: 0,
+    blockSize: 4,
+    seed: 1,
+    strata: plan.strata,
+  });
+  assert.ok(!res.ok);
+  assert.equal(res.error.stratum, "A");
+  assert.equal(res.error.suggestion, 8); // nearest multiple of the 2 sequences
+});
+
+test("applyStratumSuggestion: multi-axis rewrites only the shared n: count", () => {
+  assert.equal(applyStratumSuggestion("Site: A, B, C | n: 7", "A", 8), "Site: A, B, C | n: 8");
+  // factor levels are preserved verbatim
+  assert.equal(applyStratumSuggestion("Site: A, B | Sex: M, F | count: 6", "A · M", 8), "Site: A, B | Sex: M, F | count: 8");
+});
+
+test("applyStratumSuggestion: single-axis rewrites only the named stratum", () => {
+  assert.equal(applyStratumSuggestion("Male: 7, Female: 12", "Male", 8), "Male: 8, Female: 12");
+  assert.equal(applyStratumSuggestion("Male: 7, Female: 12", "Female", 16), "Male: 7, Female: 16");
+});
+
+test("applying the suggestion produces a valid schedule (fix loop)", () => {
+  const fixed = applyStratumSuggestion("Site: A, B, C | n: 7", "A", 8);
+  const plan = parseStratification(fixed);
+  assert.ok(!("error" in plan));
+  const res = generateSchedule({
+    method: "crossover",
+    designId: "2x2x2",
+    drugs: ["A", "B"],
+    n: 0,
+    blockSize: 4,
+    seed: 1,
+    strata: plan.strata,
+  });
+  assert.ok(res.ok);
+  assert.equal(res.rows.length, 24); // 3 strata × 8
+  const counts: Record<string, Record<string, number>> = {};
+  for (const row of res.rows) {
+    const s = row.stratum as string;
+    counts[s] = counts[s] ?? {};
+    counts[s][row.sequenceLabel] = (counts[s][row.sequenceLabel] ?? 0) + 1;
+  }
+  for (const s of ["A", "B", "C"]) assert.deepEqual(counts[s], { AB: 4, BA: 4 });
 });
 
 test("unbalanced stratum size is rejected", () => {

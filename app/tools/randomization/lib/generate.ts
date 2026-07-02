@@ -24,6 +24,9 @@ export interface BilingualError {
   suggestion?: number;
   /** Valid block sizes for the given N, when the block size leaves an unbalanced tail. */
   validBlocks?: number[];
+  /** Name of the offending stratum, when the error is stratum-scoped. Lets the UI
+   *  apply the suggested size to that stratum's entry instead of total N. */
+  stratum?: string;
 }
 
 /** Block sizes offered in the UI. */
@@ -32,6 +35,143 @@ export const BLOCK_OPTIONS = [2, 4, 6, 8, 12];
 export interface Stratum {
   name: string;
   n: number;
+}
+
+/** A single stratification factor with its levels, e.g. { name: "Site", levels: ["A","B","C"] }. */
+export interface StratAxis {
+  name: string;
+  levels: string[];
+}
+
+export interface StratPlan {
+  /** Flat strata handed to the engine. In multi-axis mode these are the cross-product cells. */
+  strata: Stratum[];
+  /** Factor axes when multi-axis; empty for legacy single-axis input. */
+  axes: StratAxis[];
+  /** Subjects per cross-product cell in multi-axis mode; 0 for legacy. */
+  perCell: number;
+  multiAxis: boolean;
+}
+
+/** Separator used to join cross-product level labels into a stratum name (e.g. "A · M"). */
+export const STRATUM_SEP = " · ";
+const RESERVED_COUNT_KEYS = ["n", "count", "per"];
+
+/**
+ * Parse the stratification input. Two modes, discriminated by the "|" pipe:
+ *
+ *  - Legacy single-axis (no pipe): comma-separated `name:n` pairs with an
+ *    explicit count each, e.g. `Male:12, Female:12`.
+ *  - Multi-axis factorial (has pipe): segments separated by `|`. Each factor is
+ *    `Name: level1, level2`; one reserved `n:` (or `count:`/`per:`) segment sets
+ *    the equal per-cell subject count, e.g. `Site: A, B, C | Sex: M, F | n: 8`.
+ *    The cross-product of all axis levels becomes the strata, each of size n.
+ *
+ * Returns a plan, or a bilingual error for malformed multi-axis input.
+ */
+export function parseStratification(raw: string): StratPlan | { error: BilingualError } {
+  const text = (raw ?? "").trim();
+  if (!text) return { strata: [], axes: [], perCell: 0, multiAxis: false };
+
+  if (!text.includes("|")) {
+    const strata = text
+      .split(",")
+      .map((tok) => {
+        const [name, cnt] = tok.split(":");
+        return { name: (name ?? "").trim(), n: parseInt((cnt ?? "").trim(), 10) || 0 };
+      })
+      .filter((s) => s.name && s.n > 0);
+    return { strata, axes: [], perCell: 0, multiAxis: false };
+  }
+
+  const segments = text.split("|").map((s) => s.trim()).filter(Boolean);
+  const axes: StratAxis[] = [];
+  let perCell = 0;
+  const seenAxis = new Set<string>();
+  for (const seg of segments) {
+    const ci = seg.indexOf(":");
+    if (ci < 0)
+      return { error: {
+        en: `Stratification segment "${seg}" must be "Name: level1, level2" or "n: count".`,
+        tr: `Tabakalandırma bölümü "${seg}" biçimi "Ad: seviye1, seviye2" veya "n: sayı" olmalı.`,
+      } };
+    const name = seg.slice(0, ci).trim();
+    const rest = seg.slice(ci + 1).trim();
+    if (RESERVED_COUNT_KEYS.includes(name.toLowerCase())) {
+      const num = parseInt(rest, 10);
+      if (!num || num < 1)
+        return { error: {
+          en: `Per-stratum count "${rest}" must be a positive integer.`,
+          tr: `Tabaka başına sayı "${rest}" pozitif bir tam sayı olmalı.`,
+        } };
+      perCell = num;
+      continue;
+    }
+    const levels = rest.split(",").map((l) => l.trim()).filter(Boolean);
+    if (!levels.length)
+      return { error: {
+        en: `Axis "${name}" needs at least one level, e.g. "${name}: A, B".`,
+        tr: `"${name}" ekseni en az bir seviye gerektirir, örn. "${name}: A, B".`,
+      } };
+    if (seenAxis.has(name.toLowerCase()))
+      return { error: {
+        en: `Duplicate stratification axis "${name}".`,
+        tr: `Tekrarlanan tabakalandırma ekseni "${name}".`,
+      } };
+    seenAxis.add(name.toLowerCase());
+    axes.push({ name, levels });
+  }
+
+  if (!axes.length)
+    return { error: {
+      en: `Multi-axis stratification needs at least one factor axis, e.g. "Site: A, B | n: 8".`,
+      tr: `Çok-eksenli tabakalandırma en az bir faktör ekseni gerektirir, örn. "Site: A, B | n: 8".`,
+    } };
+  if (perCell < 1)
+    return { error: {
+      en: `Multi-axis stratification needs a per-stratum count — add "| n: 8".`,
+      tr: `Çok-eksenli tabakalandırma tabaka başına sayı gerektirir — "| n: 8" ekleyin.`,
+    } };
+
+  // Cartesian product of axis levels, in axis order → one stratum per cell.
+  let combos: string[][] = [[]];
+  for (const axis of axes) {
+    const next: string[][] = [];
+    for (const combo of combos) for (const lvl of axis.levels) next.push([...combo, lvl]);
+    combos = next;
+  }
+  const strata: Stratum[] = combos.map((c) => ({ name: c.join(STRATUM_SEP), n: perCell }));
+  return { strata, axes, perCell, multiAxis: true };
+}
+
+/**
+ * Rewrite the stratification input so the flagged stratum takes the suggested
+ * per-cell size, preserving factor labels and spacing. Mirrors the two input
+ * modes of parseStratification:
+ *  - Multi-axis ("Site: A, B, C | n: 7") → rewrite the shared count segment.
+ *  - Single-axis ("Male: 7, Female: 12") → rewrite only the named stratum.
+ * Returns the input unchanged if nothing matched.
+ */
+export function applyStratumSuggestion(raw: string, stratum: string, suggestion: number): string {
+  if (raw.includes("|")) {
+    return raw
+      .split("|")
+      .map((seg) => {
+        const ci = seg.indexOf(":");
+        if (ci < 0) return seg;
+        const key = seg.slice(0, ci).trim().toLowerCase();
+        return RESERVED_COUNT_KEYS.includes(key) ? `${seg.slice(0, ci)}: ${suggestion}` : seg;
+      })
+      .join("|");
+  }
+  return raw
+    .split(",")
+    .map((tok) => {
+      const ci = tok.indexOf(":");
+      if (ci < 0) return tok;
+      return tok.slice(0, ci).trim() === stratum ? `${tok.slice(0, ci)}: ${suggestion}` : tok;
+    })
+    .join(",");
 }
 
 export interface NumberScheme {
@@ -231,7 +371,10 @@ export function generateSchedule(p: GenParams): GenResult {
   if (strata.length) {
     for (const s of strata) {
       const e = checkCount(s.n, { en: `Stratum "${s.name}" size`, tr: `"${s.name}" tabakası büyüklüğü` });
-      if (e) return e;
+      if (e) {
+        if (!e.ok) e.error.stratum = s.name; // tag which stratum for the quick-fix button
+        return e;
+      }
     }
     let idx = 0;
     for (const s of strata) {
