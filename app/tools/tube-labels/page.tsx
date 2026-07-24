@@ -1,379 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import type jsPDF from "jspdf";
 import Select from "@/app/components/Select";
-
-// Tanex TW-2052 label sheet spec (all values in mm).
-const TANEX_TW_2052 = {
-  pageWidth: 210,
-  pageHeight: 297,
-  labelWidth: 46.4,
-  labelHeight: 21.2,
-  columns: 4,
-  rows: 13,
-  marginTop: 12,
-  marginLeft: 7,
-  gapHorizontal: 1.5,
-  gapVertical: 0,
-  cornerRadius: 1.5,
-} as const;
-
-const CELLS_PER_SHEET = TANEX_TW_2052.columns * TANEX_TW_2052.rows; // 52
-
-// jsPDF fallback font names. Inter → Helvetica, Fraunces Bold → Times Bold.
-const FONT_INTER = "helvetica";
-const FONT_FRAUNCES = "times";
-
-// --- Types ---
-
-type Timepoint = {
-  index: number;
-  time: string;
-};
-
-type Aliquot = "master" | "backup";
-type Section = "blood" | "plasma-master" | "plasma-backup";
-type SubjectIdDigits = 2 | 3;
-
-type LabelItem =
-  | { type: "tube-blood"; subject: number; period: number; pointIndex: number; time: string }
-  | { type: "tube-plasma-master"; subject: number; period: number; pointIndex: number; time: string }
-  | { type: "tube-plasma-backup"; subject: number; period: number; pointIndex: number; time: string }
-  | { type: "separator-point"; fromPoint: number; toPoint: number; context: "blood" | "plasma-master" | "plasma-backup" }
-  | { type: "separator-period"; fromPeriod: number; toPeriod: number }
-  | { type: "separator-aliquot"; fromAliquot: Aliquot; toAliquot: Aliquot }
-  | { type: "separator-section"; fromSection: Section; toSection: Section }
-  | { type: "page-break" };
-
-interface TubeLabelParams {
-  studyCode: string;
-  drugName: string;
-  subject: number;
-  period: number;
-  periods: number;
-  pointIndex: number;
-  time: string;
-  subjectIdDigits: SubjectIdDigits;
-  variant: "blood" | "plasma-master" | "plasma-backup";
-}
-
-interface BuildParams {
-  studyCode: string;
-  drugName: string;
-  subjects: number;
-  periods: number;
-  timepointsPerPeriod: number;
-  timepoints: Timepoint[];
-  duplicateTime0: boolean;
-}
-
-// --- Helpers ---
-
-function padSubject(n: number, digits: SubjectIdDigits): string {
-  return String(n).padStart(digits, "0");
-}
-
-function pointLabel(idx: number): string {
-  return `P${String(idx).padStart(2, "0")}`;
-}
-
-function normalizeTime(raw: string): string {
-  // "Time 0" → "0"; "0.33" → "0.33"
-  return raw.trim().replace(/^time\s+/i, "");
-}
-
-function timeLine(pointIndex: number, time: string): string {
-  return `${pointLabel(pointIndex)} · Time: ${normalizeTime(time)}`;
-}
-
-function variantTag(variant: "blood" | "plasma-master" | "plasma-backup"): string {
-  if (variant === "blood") return "WHOLE BLOOD";
-  if (variant === "plasma-master") return "PLASMA · MASTER";
-  return "PLASMA · BACKUP";
-}
-
-// --- PDF render functions ---
-
-function renderTubeLabel(doc: jsPDF, lx: number, ly: number, p: TubeLabelParams): void {
-  const W = TANEX_TW_2052.labelWidth;
-  const H = TANEX_TW_2052.labelHeight;
-  const R = TANEX_TW_2052.cornerRadius;
-  const PAD = 1.5;
-  const cx = lx + PAD;
-  const rightX = lx + W - PAD;
-  const midX = lx + W / 2;
-
-  // White fill, light gray border
-  doc.setFillColor(255, 255, 255);
-  doc.setDrawColor(180, 180, 180);
-  doc.setLineWidth(0.15);
-  doc.roundedRect(lx, ly, W, H, R, R, "FD");
-
-  // "Study:" label (5pt, Inter Semi Bold, solid black) + value (normal)
-  doc.setFont(FONT_INTER, "bold");
-  doc.setFontSize(5);
-  doc.setTextColor(0, 0, 0);
-  doc.text("Study:", cx, ly + 3.0);
-  const studyLabelW = doc.getTextWidth("Study:");
-  doc.setFont(FONT_INTER, "normal");
-  doc.setTextColor(20, 20, 20);
-  doc.text(p.studyCode, cx + studyLabelW + 0.8, ly + 3.0);
-
-  // Variant tag (4pt, Inter, gray, right) — helps lab personnel identify tube type
-  doc.setFont(FONT_INTER, "normal");
-  doc.setFontSize(4);
-  doc.setTextColor(140, 140, 140);
-  doc.text(variantTag(p.variant), rightX, ly + 3.0, { align: "right" });
-
-  // Drug Name (6pt, Inter Bold, centered, black)
-  doc.setFont(FONT_INTER, "bold");
-  doc.setFontSize(6);
-  doc.setTextColor(20, 20, 20);
-  doc.text(p.drugName, midX, ly + 6.2, { align: "center" });
-
-  // Divider
-  doc.setDrawColor(210, 210, 210);
-  doc.setLineWidth(0.12);
-  doc.line(cx, ly + 7.5, rightX, ly + 7.5);
-
-  // "Subj. ID:" (5pt, Inter Semi Bold, solid black, left)
-  doc.setFont(FONT_INTER, "bold");
-  doc.setFontSize(5);
-  doc.setTextColor(0, 0, 0);
-  doc.text("Subj. ID:", cx, ly + 10.5);
-
-  // Subject number (Fraunces Bold, large, centered) — slightly above geometric center
-  doc.setFont(FONT_FRAUNCES, "bold");
-  doc.setFontSize(14);
-  doc.setTextColor(0, 0, 0);
-  doc.text(padSubject(p.subject, p.subjectIdDigits), midX, ly + 15.4, { align: "center" });
-
-  // "P · Time:" line (6pt, Inter, centered)
-  doc.setFont(FONT_INTER, "normal");
-  doc.setFontSize(6);
-  doc.setTextColor(20, 20, 20);
-  doc.text(timeLine(p.pointIndex, p.time), midX, ly + 18.2, { align: "center" });
-
-  // "Period:" line (5pt, Inter Semi Bold black + value normal, left) — always rendered
-  doc.setFont(FONT_INTER, "bold");
-  doc.setFontSize(5);
-  doc.setTextColor(0, 0, 0);
-  doc.text("Period:", cx, ly + 20.4);
-  const periodLabelW = doc.getTextWidth("Period:");
-  doc.setFont(FONT_INTER, "normal");
-  doc.setTextColor(20, 20, 20);
-  doc.text(String(p.period), cx + periodLabelW + 0.8, ly + 20.4);
-}
-
-function renderSeparator(
-  doc: jsPDF,
-  lx: number,
-  ly: number,
-  topText: string,
-  midLine1: string,
-  midLine2: string,
-  bottomText: string
-): void {
-  const W = TANEX_TW_2052.labelWidth;
-  const H = TANEX_TW_2052.labelHeight;
-  const R = TANEX_TW_2052.cornerRadius;
-  const PAD = 1.5;
-  const cx = lx + PAD;
-  const rightX = lx + W - PAD;
-  const midX = lx + W / 2;
-
-  // Light gray fill, dashed border
-  doc.setFillColor(248, 248, 248);
-  doc.setDrawColor(160, 160, 160);
-  doc.setLineWidth(0.15);
-  doc.setLineDashPattern([1.2, 0.7], 0);
-  doc.roundedRect(lx, ly, W, H, R, R, "FD");
-  doc.setLineDashPattern([], 0);
-
-  // Top text (6pt, Inter Bold, centered)
-  doc.setFont(FONT_INTER, "bold");
-  doc.setFontSize(6);
-  doc.setTextColor(50, 50, 50);
-  doc.text(topText, midX, ly + 4.5, { align: "center" });
-
-  // Top divider
-  doc.setDrawColor(190, 190, 190);
-  doc.setLineWidth(0.1);
-  doc.line(cx, ly + 5.8, rightX, ly + 5.8);
-
-  // Instruction text (4.5pt, Inter, gray, centered)
-  doc.setFont(FONT_INTER, "normal");
-  doc.setFontSize(4.5);
-  doc.setTextColor(110, 110, 110);
-  doc.text(midLine1, midX, ly + 10.5, { align: "center" });
-  doc.text(midLine2, midX, ly + 13.0, { align: "center" });
-
-  // Bottom divider
-  doc.setDrawColor(190, 190, 190);
-  doc.setLineWidth(0.1);
-  doc.line(cx, ly + 14.5, rightX, ly + 14.5);
-
-  // Bottom text (6pt, Inter Bold, centered)
-  doc.setFont(FONT_INTER, "bold");
-  doc.setFontSize(6);
-  doc.setTextColor(50, 50, 50);
-  doc.text(bottomText, midX, ly + 18.5, { align: "center" });
-}
-
-function renderSeparatorPoint(
-  doc: jsPDF,
-  lx: number,
-  ly: number,
-  fromPoint: number,
-  toPoint: number,
-  context: "blood" | "plasma-master" | "plasma-backup"
-): void {
-  const midLine2 = context === "blood" ? "next blood sampling point." : "next plasma sample.";
-  renderSeparator(
-    doc, lx, ly,
-    `END OF ${pointLabel(fromPoint)}`,
-    "Please proceed to the",
-    midLine2,
-    `> NEXT: ${pointLabel(toPoint)}`
-  );
-}
-
-function renderSeparatorPeriod(doc: jsPDF, lx: number, ly: number, fromPeriod: number, toPeriod: number): void {
-  renderSeparator(
-    doc, lx, ly,
-    `END OF PERIOD ${fromPeriod}`,
-    "Please proceed to",
-    `Period ${toPeriod}.`,
-    `> NEXT: PERIOD ${toPeriod}`
-  );
-}
-
-function renderSeparatorAliquot(doc: jsPDF, lx: number, ly: number, fromAliquot: Aliquot, toAliquot: Aliquot): void {
-  const fromLabel = fromAliquot === "master" ? "ALIQUOT 1 (Master)" : "ALIQUOT 2 (Backup)";
-  const toLabel = toAliquot === "master" ? "ALIQUOT 1 (Master)" : "ALIQUOT 2 (Backup)";
-  renderSeparator(
-    doc, lx, ly,
-    `END OF ${fromLabel}`,
-    "Please proceed to the",
-    "next plasma aliquot.",
-    `> NEXT: ${toLabel}`
-  );
-}
-
-function renderSeparatorSection(doc: jsPDF, lx: number, ly: number, fromSection: Section, toSection: Section): void {
-  const fromLabel = sectionDisplay(fromSection);
-  const toLabel = sectionDisplay(toSection);
-  renderSeparator(
-    doc, lx, ly,
-    `END OF ${fromLabel}`,
-    "Switch label sheet.",
-    "Next section starts here.",
-    `> NEXT: ${toLabel}`
-  );
-}
-
-function sectionDisplay(s: Section): string {
-  if (s === "blood") return "BLOOD TUBE LABELS";
-  if (s === "plasma-master") return "PLASMA · MASTER";
-  return "PLASMA · BACKUP";
-}
-
-// --- Label sequence generation ---
-
-function generateBloodTubeSection(p: BuildParams): LabelItem[] {
-  const items: LabelItem[] = [];
-  for (let period = 1; period <= p.periods; period++) {
-    for (let pointIndex = 1; pointIndex <= p.timepointsPerPeriod; pointIndex++) {
-      const time = p.timepoints[pointIndex - 1]?.time ?? "";
-      const copies = pointIndex === 1 && period === 1 && p.duplicateTime0 ? 2 : 1;
-
-      for (let subject = 1; subject <= p.subjects; subject++) {
-        for (let c = 0; c < copies; c++) {
-          items.push({ type: "tube-blood", subject, period, pointIndex, time });
-        }
-      }
-
-      const isLastPoint = pointIndex === p.timepointsPerPeriod;
-      const isLastPeriod = period === p.periods;
-
-      if (isLastPoint && !isLastPeriod) {
-        items.push({ type: "separator-period", fromPeriod: period, toPeriod: period + 1 });
-      } else if (!isLastPoint) {
-        items.push({ type: "separator-point", fromPoint: pointIndex, toPoint: pointIndex + 1, context: "blood" });
-      }
-    }
-  }
-  return items;
-}
-
-function generatePlasmaPeriodAliquot(p: BuildParams, period: number, aliquot: Aliquot): LabelItem[] {
-  const items: LabelItem[] = [];
-  const itemType: LabelItem["type"] = aliquot === "master" ? "tube-plasma-master" : "tube-plasma-backup";
-  const sepContext: "plasma-master" | "plasma-backup" = aliquot === "master" ? "plasma-master" : "plasma-backup";
-  for (let pointIndex = 1; pointIndex <= p.timepointsPerPeriod; pointIndex++) {
-    const time = p.timepoints[pointIndex - 1]?.time ?? "";
-    const copies = pointIndex === 1 && period === 1 && p.duplicateTime0 ? 2 : 1;
-
-    for (let subject = 1; subject <= p.subjects; subject++) {
-      for (let c = 0; c < copies; c++) {
-        items.push({ type: itemType, subject, period, pointIndex, time } as LabelItem);
-      }
-    }
-
-    if (pointIndex < p.timepointsPerPeriod) {
-      items.push({ type: "separator-point", fromPoint: pointIndex, toPoint: pointIndex + 1, context: sepContext });
-    }
-  }
-  return items;
-}
-
-function generateAllItems(p: BuildParams): LabelItem[] {
-  const items: LabelItem[] = [];
-
-  // Section 1: Blood tube labels
-  items.push(...generateBloodTubeSection(p));
-
-  // Force a fresh page before plasma section
-  items.push({ type: "page-break" });
-
-  // Plasma section starts with a section transition separator
-  items.push({ type: "separator-section", fromSection: "blood", toSection: "plasma-master" });
-
-  // Section 2: Plasma, grouped by period (master → backup within each period)
-  for (let period = 1; period <= p.periods; period++) {
-    items.push(...generatePlasmaPeriodAliquot(p, period, "master"));
-    items.push({ type: "separator-aliquot", fromAliquot: "master", toAliquot: "backup" });
-    items.push(...generatePlasmaPeriodAliquot(p, period, "backup"));
-
-    if (period < p.periods) {
-      items.push({ type: "separator-period", fromPeriod: period, toPeriod: period + 1 });
-    }
-  }
-
-  return items;
-}
-
-function packIntoSheets(items: LabelItem[]): LabelItem[][] {
-  const sheets: LabelItem[][] = [];
-  let current: LabelItem[] = [];
-  for (const item of items) {
-    if (item.type === "page-break") {
-      if (current.length > 0) {
-        sheets.push(current);
-        current = [];
-      }
-      continue;
-    }
-    if (current.length === CELLS_PER_SHEET) {
-      sheets.push(current);
-      current = [];
-    }
-    current.push(item);
-  }
-  if (current.length > 0) sheets.push(current);
-  return sheets;
-}
+import { CELLS_PER_SHEET, ZERO_CALIBRATION } from "./label-layout";
+import {
+  type BuildParams,
+  type SubjectIdDigits,
+  type Timepoint,
+  generateAllItems,
+  packIntoSheets,
+  pointLabel,
+} from "./labels-shared";
 
 // --- Constants ---
 
@@ -483,43 +120,43 @@ export default function TubeLabelsPage() {
 
   const tppCount = !isNaN(timepointsPerPeriod) && timepointsPerPeriod >= 1 ? timepointsPerPeriod : 0;
 
-  async function exportPDF() {
+  function validateForExport(): BuildParams | null {
     setExportError("");
 
     if (!studyCode.trim()) {
       setExportError("Study Code is required.");
-      return;
+      return null;
     }
     if (!drugName.trim()) {
       setExportError("Drug Name is required.");
-      return;
+      return null;
     }
     if (isNaN(subjects) || subjects < 1 || subjects > 100) {
       setExportError("Subjects must be a number between 1 and 100.");
-      return;
+      return null;
     }
     if (isNaN(periods) || periods < 1 || periods > 4) {
       setExportError("Please select the number of periods (1-4).");
-      return;
+      return null;
     }
     if (isNaN(timepointsPerPeriod) || timepointsPerPeriod < 1 || timepointsPerPeriod > 30) {
       setExportError("Timepoints per period must be between 1 and 30.");
-      return;
+      return null;
     }
     if (subjectIdDigits === null) {
       setExportError("Please select Subject ID format.");
-      return;
+      return null;
     }
 
     const tpSlice = timepointValues.slice(0, timepointsPerPeriod);
     if (tpSlice.length < timepointsPerPeriod) {
       setExportError(`Timepoint ${pointLabel(tpSlice.length + 1)} is required.`);
-      return;
+      return null;
     }
     for (let i = 0; i < tpSlice.length; i++) {
       if (!tpSlice[i] || !tpSlice[i].trim()) {
         setExportError(`Timepoint ${pointLabel(i + 1)} is required.`);
-        return;
+        return null;
       }
     }
 
@@ -528,7 +165,7 @@ export default function TubeLabelsPage() {
       time: time.trim(),
     }));
 
-    const buildParams: BuildParams = {
+    return {
       studyCode: studyCode.trim(),
       drugName: drugName.trim().toUpperCase(),
       subjects,
@@ -537,78 +174,30 @@ export default function TubeLabelsPage() {
       timepoints,
       duplicateTime0,
     };
+  }
+
+  async function exportWord() {
+    const buildParams = validateForExport();
+    if (buildParams === null || subjectIdDigits === null) return;
 
     const items = generateAllItems(buildParams);
-    const sheets = packIntoSheets(items);
+    const sheets = packIntoSheets(items, CELLS_PER_SHEET);
 
-    const { default: jsPDFClass } = await import("jspdf");
-    const doc = new jsPDFClass({ unit: "mm", format: "a4", orientation: "portrait" });
-    const drugUpper = drugName.trim().toUpperCase();
-    const studyTrim = studyCode.trim();
-
-    sheets.forEach((sheet, sheetIdx) => {
-      if (sheetIdx > 0) doc.addPage();
-
-      sheet.forEach((item, cellIdx) => {
-        const col = cellIdx % TANEX_TW_2052.columns;
-        const row = Math.floor(cellIdx / TANEX_TW_2052.columns);
-        const lx =
-          TANEX_TW_2052.marginLeft +
-          col * (TANEX_TW_2052.labelWidth + TANEX_TW_2052.gapHorizontal);
-        const ly =
-          TANEX_TW_2052.marginTop +
-          row * (TANEX_TW_2052.labelHeight + TANEX_TW_2052.gapVertical);
-
-        if (item.type === "tube-blood") {
-          renderTubeLabel(doc, lx, ly, {
-            studyCode: studyTrim,
-            drugName: drugUpper,
-            subject: item.subject,
-            period: item.period,
-            periods,
-            pointIndex: item.pointIndex,
-            time: item.time,
-            subjectIdDigits,
-            variant: "blood",
-          });
-        } else if (item.type === "tube-plasma-master") {
-          renderTubeLabel(doc, lx, ly, {
-            studyCode: studyTrim,
-            drugName: drugUpper,
-            subject: item.subject,
-            period: item.period,
-            periods,
-            pointIndex: item.pointIndex,
-            time: item.time,
-            subjectIdDigits,
-            variant: "plasma-master",
-          });
-        } else if (item.type === "tube-plasma-backup") {
-          renderTubeLabel(doc, lx, ly, {
-            studyCode: studyTrim,
-            drugName: drugUpper,
-            subject: item.subject,
-            period: item.period,
-            periods,
-            pointIndex: item.pointIndex,
-            time: item.time,
-            subjectIdDigits,
-            variant: "plasma-backup",
-          });
-        } else if (item.type === "separator-point") {
-          renderSeparatorPoint(doc, lx, ly, item.fromPoint, item.toPoint, item.context);
-        } else if (item.type === "separator-period") {
-          renderSeparatorPeriod(doc, lx, ly, item.fromPeriod, item.toPeriod);
-        } else if (item.type === "separator-aliquot") {
-          renderSeparatorAliquot(doc, lx, ly, item.fromAliquot, item.toAliquot);
-        } else if (item.type === "separator-section") {
-          renderSeparatorSection(doc, lx, ly, item.fromSection, item.toSection);
-        }
-      });
+    const { exportSheetsToWordBlob } = await import("./word-export");
+    const blob = await exportSheetsToWordBlob(sheets, {
+      studyCode: buildParams.studyCode,
+      drugName: buildParams.drugName,
+      subjectIdDigits,
+      calibration: ZERO_CALIBRATION,
     });
 
-    const code = studyTrim.replace(/[^a-zA-Z0-9-]/g, "-");
-    doc.save(`tube-labels-${code}.pdf`);
+    const code = buildParams.studyCode.replace(/[^a-zA-Z0-9-]/g, "-");
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `tube-labels-${code}.docx`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -705,8 +294,8 @@ export default function TubeLabelsPage() {
                 onChange={(val) => setSubjectIdDigitsRaw(val)}
                 placeholder="Select..."
                 options={[
-                  { value: "2", label: "2 digits (e.g., 24)" },
-                  { value: "3", label: "3 digits (e.g., 024)" },
+                  { value: "2", label: "2 digits (24)" },
+                  { value: "3", label: "3 digits (024)" },
                 ]}
               />
             </div>
@@ -718,6 +307,22 @@ export default function TubeLabelsPage() {
                 readOnly
                 style={{ color: "var(--muted)", cursor: "default" }}
               />
+            </div>
+            <div>
+              <p
+                style={{
+                  fontFamily: "var(--font-jetbrains-mono)",
+                  fontSize: ".68rem",
+                  color: "var(--muted)",
+                  lineHeight: 1.5,
+                  paddingBottom: ".4rem",
+                }}
+              >
+                Need a different label format? Email{" "}
+                <a href="mailto:info@trialgrids.com" style={{ color: "var(--accent)" }}>
+                  info@trialgrids.com
+                </a>
+              </p>
             </div>
           </div>
 
@@ -809,8 +414,8 @@ export default function TubeLabelsPage() {
       <div className="panel">
         <div className="panel-body">
           <div className="btn-row">
-            <button className="btn" onClick={exportPDF}>
-              Export PDF
+            <button className="btn" onClick={exportWord}>
+              Export Word
             </button>
           </div>
           {exportError && <div style={ERROR_STYLE}>⚠ {exportError}</div>}

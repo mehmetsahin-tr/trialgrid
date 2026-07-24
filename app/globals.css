@@ -211,6 +211,7 @@ footer a:hover { text-decoration: underline; }
 /* Custom Select */
 .custom-select { position: relative; width: 100%; }
 .custom-select-trigger { width: 100%; padding: .6rem .75rem; border: 1px solid var(--rule); background: var(--paper); font-family: var(--font-jetbrains-mono), monospace; font-size: .85rem; color: var(--ink); cursor: pointer; display: flex; justify-content: space-between; align-items: center; text-align: left; line-height: 1.4; border-radius: var(--radius-sm); }
+.custom-select-trigger > span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .custom-select-trigger.placeholder { color: var(--muted); font-size: .72rem; }
 .custom-select-trigger:focus, .custom-select-trigger.open { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .custom-select-arrow { font-size: .65rem; color: var(--muted); flex-shrink: 0; margin-left: .4rem; }
