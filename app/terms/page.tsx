@@ -25,7 +25,7 @@ function TermsEN() {
         <div className="meta">
           last updated
           <br />
-          May 2026
+          October 2026
         </div>
       </div>
 
@@ -178,7 +178,7 @@ function TermsEN() {
         <p>
           These terms are governed by the laws of the Republic of Turkey. Any
           dispute arising from your use of Trialgrids shall be resolved by the
-          courts and enforcement offices of <strong>Gaziantep, Turkey</strong>.
+          <strong>Istanbul Central (Çağlayan) Courts and Enforcement Offices</strong>, Turkey.
         </p>
         <p>
           If you are a consumer based in the European Union, mandatory consumer
@@ -213,7 +213,7 @@ function TermsTR() {
         <div className="meta">
           son güncelleme
           <br />
-          Mayıs 2026
+          Ekim 2026
         </div>
       </div>
 
@@ -369,7 +369,7 @@ function TermsTR() {
         <p>
           Bu şartlar Türkiye Cumhuriyeti yasalarına tabidir. Trialgrids
           kullanımınızdan kaynaklanan herhangi bir uyuşmazlık{" "}
-          <strong>Gaziantep, Türkiye</strong> mahkemeleri ve icra daireleri
+          <strong>İstanbul Merkez (Çağlayan) Mahkemeleri ve İcra Daireleri</strong>{" "}
           tarafından çözülecektir.
         </p>
         <p>
