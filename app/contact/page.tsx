@@ -79,7 +79,7 @@ function ContactEN() {
           Excel hacks, the repetitive copy-paste-replace cycles that quietly
           steal hours from research staff every week.
         </p>
-        <p>Based in Gaziantep, Turkey. Serving researchers worldwide.</p>
+        <p>Based in Turkey. Serving researchers worldwide.</p>
 
         <h2>What to expect</h2>
         <p>When you write:</p>
@@ -171,7 +171,7 @@ function ContactTR() {
           gidermek için oluşturuldu.
         </p>
         <p>
-          Gaziantep, Türkiye merkezli. Dünya çapında araştırmacılara hizmet
+          Türkiye merkezli. Dünya çapında araştırmacılara hizmet
           veriyor.
         </p>
 

@@ -43,7 +43,7 @@ export default function AboutPage() {
         <h2 style={{ marginTop: "0", marginBottom: "1rem" }}>The story</h2>
         <p style={{ marginBottom: "1rem" }}>
           Trialgrids was built by Mehmet Şahin, a clinical research professional
-          based in Gaziantep, Turkey, with 13 years of experience in
+          based in Turkey, with 13 years of experience in
           bioequivalence and bioavailability (BE/BA) studies.
         </p>
         <p style={{ marginBottom: "1rem" }}>

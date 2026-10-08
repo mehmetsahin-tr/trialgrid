@@ -37,7 +37,7 @@ function PrivacyEN() {
           research tools.
         </p>
         <p style={{ marginBottom: "2rem" }}>
-          We are based in Gaziantep, Turkey. You can reach us at{" "}
+          We are based in Turkey. You can reach us at{" "}
           <a href="mailto:info@trialgrids.com">info@trialgrids.com</a>.
         </p>
 
@@ -226,7 +226,7 @@ function PrivacyTR() {
           nasıl işlediğimizi açıklar.
         </p>
         <p style={{ marginBottom: "2rem" }}>
-          Gaziantep, Türkiye&apos;de bulunuyoruz. Bizimle{" "}
+          Türkiye&apos;de bulunuyoruz. Bizimle{" "}
           <a href="mailto:info@trialgrids.com">info@trialgrids.com</a>{" "}
           adresinden iletişime geçebilirsiniz.
         </p>

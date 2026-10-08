@@ -34,7 +34,7 @@ function TermsEN() {
           These terms govern your use of trialgrids.com and all tools provided
           on the site. Trialgrids is operated by Mehmet Şahin (sole proprietor)
           under the brand &ldquo;Trialgrids&rdquo; (referred to as &ldquo;we&rdquo;,
-          &ldquo;our&rdquo;, &ldquo;us&rdquo;), based in Gaziantep, Turkey.
+          &ldquo;our&rdquo;, &ldquo;us&rdquo;), based in Turkey.
         </p>
         <p style={{ marginBottom: "2rem" }}>
           By using Trialgrids, you agree to these terms. If you do not agree,
@@ -220,7 +220,7 @@ function TermsTR() {
       <div className="prose-block">
         <p style={{ marginBottom: "2rem" }}>
           Bu şartlar, trialgrids.com&apos;u ve sitede sunulan tüm araçları
-          kullanımınızı düzenler. Trialgrids, Gaziantep, Türkiye merkezli olarak
+          kullanımınızı düzenler. Trialgrids, Türkiye merkezli olarak
           &ldquo;Trialgrids&rdquo; markası altında Mehmet Şahin (şahıs işletmesi)
           tarafından işletilmektedir (&ldquo;biz&rdquo;, &ldquo;bize&rdquo;,
           &ldquo;bizim&rdquo; olarak anılacaktır).
