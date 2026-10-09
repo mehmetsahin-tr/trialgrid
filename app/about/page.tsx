@@ -42,7 +42,8 @@ export default function AboutPage() {
       <div style={{ maxWidth: "62ch", fontSize: "1.02rem", lineHeight: 1.7 }}>
         <h2 style={{ marginTop: "0", marginBottom: "1rem" }}>The story</h2>
         <p style={{ marginBottom: "1rem" }}>
-          Trialgrids was built by Mehmet Şahin, a clinical research professional
+          Trialgrids was built by{" "}
+          <a href="https://mehmetsahin-tr.github.io/" rel="author">Mehmet Şahin</a>, a clinical research professional
           based in Turkey, with 13 years of experience in
           bioequivalence and bioavailability (BE/BA) studies.
         </p>

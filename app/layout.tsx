@@ -70,6 +70,51 @@ export const metadata: Metadata = {
   manifest: "/site.webmanifest",
 };
 
+const PERSON_ID = "https://mehmetsahin-tr.github.io/#person";
+
+const STRUCTURED_DATA = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://trialgrids.com/#organization",
+      name: "Trialgrids",
+      alternateName: "TrialGrids",
+      url: "https://trialgrids.com",
+      logo: "https://trialgrids.com/web-app-manifest-512x512.png",
+      description:
+        "Free, browser-based tools for BE/BA and crossover clinical trials. No accounts, no uploads.",
+      founder: { "@id": PERSON_ID },
+      sameAs: ["https://github.com/mehmetsahin-tr/trialgrid"],
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://trialgrids.com/#website",
+      url: "https://trialgrids.com",
+      name: "Trialgrids",
+      publisher: { "@id": "https://trialgrids.com/#organization" },
+      inLanguage: ["en", "tr"],
+    },
+    {
+      "@type": "Person",
+      "@id": PERSON_ID,
+      name: "Mehmet Şahin",
+      url: "https://mehmetsahin-tr.github.io/",
+      image: "https://mehmetsahin-tr.github.io/photo.jpg",
+      jobTitle: "Founder, Trialgrids",
+      sameAs: [
+        "https://github.com/mehmetsahin-tr",
+        "https://www.linkedin.com/in/mehmetsahin-tr",
+        "https://x.com/mehmetsahin_tr",
+        "https://www.threads.net/@mehmetsahin.tr",
+        "https://www.instagram.com/mehmetsahin.tr",
+        "https://www.facebook.com/turkey.mehmetsahin",
+        "https://www.youtube.com/@tr.mehmetsahin",
+      ],
+    },
+  ],
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -79,6 +124,10 @@ export default function RootLayout({
       className={`${fraunces.variable} ${jetbrainsMono.variable} ${inter.variable}`}
     >
       <body>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(STRUCTURED_DATA) }}
+        />
         <Header />
         <div className="page-wrapper">
           <Sidebar />
